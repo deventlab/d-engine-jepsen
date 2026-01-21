@@ -1,0 +1,38 @@
+FROM debian:bookworm-slim
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+    openssh-server \
+    ca-certificates \
+    curl \
+    sudo \
+    iptables \
+    procps \
+    man-db \
+    iputils-ping \
+    logrotate \
+    tcpdump \
+    apt-transport-https \
+    libzip4 \
+    rsyslog \
+    psmisc \
+    ntpdate \
+    faketime \
+    netcat-openbsd \
+    vim \
+    unzip \
+    iproute2 \
+    bzip2 \
+    wget \
+    dirmngr && \
+    rm -rf /var/lib/apt/lists/* && \
+    mkdir -p /var/run/sshd && \
+    ssh-keygen -A && \
+    echo 'root:root' | chpasswd && \
+    sed -i 's/#PermitRootLogin prohibit-password/PermitRootLogin yes/' /etc/ssh/sshd_config
+
+ENV TZ=UTC
+RUN ln -snf /usr/share/zoneinfo/$TZ /etc/localtime && echo $TZ > /etc/timezone
+
+EXPOSE 22
+CMD ["/usr/sbin/sshd", "-D"]

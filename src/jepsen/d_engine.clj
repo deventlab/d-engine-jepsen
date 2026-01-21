@@ -1,0 +1,146 @@
+(ns jepsen.d_engine
+  (:require
+   [clojure.tools.logging :refer :all]
+   [clojure.string :as str]
+   [jepsen [checker :as checker]
+    [cli :as cli]
+    [client :as client]
+    [control :as c]
+    [db :as db]
+    [generator :as gen]
+    [independent :as independent]
+    [nemesis :as nemesis]
+    [tests :as tests]]
+   [jepsen.checker.timeline :as timeline]
+   [jepsen.control.util :as cu]
+   [jepsen.d-engine.db :as d-db]
+   [jepsen.os.debian :as debian]
+   [knossos.model :as model]
+   [slingshot.slingshot :refer [try+]]))
+
+;; ========== Operation Definition ==========
+(defn r [_ _] {:type :invoke, :f :read, :value nil})
+(defn w [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
+
+;; ========== Client Implementation ==========
+(def ctl-bin (str "/opt/d-engine/bin/"
+                  (or (System/getenv "D_ENGINE_CTL_BINARY")
+                      "dengine_ctl-linux-amd64")))
+
+(defn parse-long-nil
+  "Parses a string to a Long. Returns nil on failure."
+  [s]
+  (when s
+    (try
+      (Long/parseLong (str/trim s))
+      (catch NumberFormatException _ nil))))
+
+(defrecord Client [session node endpoints]
+  client/Client
+
+  (open! [this test node]
+    (info "Opening client for node:" node)
+    (assoc this
+           :session (c/session node)
+           :node node))
+
+  (setup! [this test])
+
+  (invoke! [this test op]
+    (let [[k v] (:value op)
+          crash-type (if (= :read (:f op)) :fail :info)]
+      (c/with-session node session
+        (try+
+         (case (:f op)
+           :read
+           (let [result (parse-long-nil
+                         (c/exec ctl-bin :--endpoints endpoints :lget (str k)))]
+             (if result
+               (assoc op :type :ok :value (independent/tuple k result))
+               (assoc op :type :fail :error :not-found)))
+
+           :write
+           (do
+             (c/exec ctl-bin :--endpoints endpoints :put (str k) (str v))
+             (assoc op :type :ok)))
+
+         (catch [:type :jepsen.control/nonzero-exit] e
+           (let [err (str (:err e) (:out e))]
+             (cond
+               (re-find #"(?i)key not found" err)
+               (assoc op :type :fail :error :not-found)
+
+               (re-find #"(?i)cluster unavailable|connection refused" err)
+               (assoc op :type crash-type :error :cluster-unavailable)
+
+               :else
+               (assoc op :type crash-type :error err))))))))
+
+  (teardown! [this test])
+
+  (close! [this test]
+    (when session
+      (c/disconnect session))))
+
+;; ========== Checker Implementation ==========
+(defn split-history
+  "Split History: Linear Reads vs. Normal Operations"
+  [history]
+  (group-by (fn [op] (if (= :lget (:f op)) :lget-ops :other-ops)) history))
+
+(defn checker
+  "Linearizability checker"
+  [test history opts]
+  (independent/checker
+   (checker/compose
+    {;; :perf   (checker/perf)
+     :linear (checker/linearizable {:model     (model/cas-register)
+                                    :algorithm :linear})
+     :timeline (timeline/html)})))
+
+(defn test-spec
+  [opts]
+  (println "opts:" opts)
+  (println "Time limit set to:" (:time-limit opts))
+  (let [db (d-db/db)]
+    (merge tests/noop-test
+           opts
+           {:name "d-engine"
+            :os   debian/os
+            :db   db
+            :client  (Client. nil nil (:endpoints opts))
+            :nemesis (nemesis/partition-random-halves)
+            :checker (independent/checker
+                      (checker/compose
+                       {:linear (checker/linearizable {:model     (model/cas-register)
+                                                       :algorithm :linear})
+                        :timeline (timeline/html)}))
+            :generator (->> (independent/concurrent-generator
+                             3 ; Concurrent 3 independent key spaces
+                             (range 3) ; Keyspace
+                             (fn [k]
+                               (->> (gen/mix [r w])
+                                    (gen/stagger 1/2)
+                                    (gen/limit 40))))
+                            (gen/nemesis
+                             (cycle [(gen/sleep 5)
+                                     {:type :info, :f :start}
+                                     (gen/sleep 5)
+                                     {:type :info, :f :stop}]))
+                            (gen/time-limit (:time-limit opts)))})))
+
+(def cli-opts
+  "Additional command line options."
+  [["-e" "--endpoints ENDPOINTS" "The endpoints for the d-engine cluster."
+    :default "http://node1:9081,http://node2:9082,http://node3:9083"
+    :parse-fn identity
+    :validate [(complement empty?) "Endpoints cannot be empty."]]])
+
+(defn -main
+  "handles command lien arguments"
+  [& args]
+  (cli/run!
+   (merge (cli/single-test-cmd {:test-fn test-spec
+                                :opt-spec cli-opts})
+          (cli/serve-cmd))
+   args))

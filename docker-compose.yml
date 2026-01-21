@@ -1,0 +1,66 @@
+services:
+  node1: &node-base
+    image: jepsen-node:2.0
+    build:
+      context: .
+      dockerfile: Dockerfile.node
+    hostname: node1
+    environment:
+      S3_BASE_URL: ${S3_BASE_URL}
+      D_ENGINE_BINARY: ${D_ENGINE_BINARY:-three-nodes-embedded-linux-amd64}
+      D_ENGINE_CTL_BINARY: ${D_ENGINE_CTL_BINARY:-dengine_ctl-linux-amd64}
+    cap_add:
+      - NET_ADMIN
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.11
+    ports:
+      - "2021:22"
+      - "9081:9081"
+    volumes:
+      - ${SSH_KEYS_PATH:-./sshkeys}:/root/.ssh
+      - ./bin:/opt/d-engine/bin
+
+  node2:
+    <<: *node-base
+    hostname: node2
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.12
+    ports:
+      - "2022:22"
+      - "9082:9082"
+
+  node3:
+    <<: *node-base
+    hostname: node3
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.13
+    ports:
+      - "2023:22"
+      - "9083:9083"
+
+  jepsen:
+    image: jepsen:2.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    cap_add:
+      - NET_ADMIN
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.14
+    volumes:
+      - ${JEP_STORE_PATH:-./store}:/app/store
+    depends_on:
+      - node1
+      - node2
+      - node3
+
+networks:
+  mynetwork:
+    ipam:
+      driver: default
+      config:
+        - subnet: 192.168.0.0/24
