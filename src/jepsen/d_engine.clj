@@ -14,6 +14,7 @@
    [jepsen.checker.timeline :as timeline]
    [jepsen.control.util :as cu]
    [jepsen.d-engine.db :as d-db]
+   [jepsen.d-engine.nemesis :as d-nemesis]
    [jepsen.os.debian :as debian]
    [knossos.model :as model]
    [slingshot.slingshot :refer [try+]]))
@@ -102,14 +103,22 @@
   [opts]
   (println "opts:" opts)
   (println "Time limit set to:" (:time-limit opts))
-  (let [db (d-db/db)]
+  (let [db (d-db/db)
+        nemesis (d-nemesis/nemesis-package
+                 {:db        db
+                  :nodes     (:nodes opts)
+                  :faults    #{:partition :kill :pause}
+                  :partition {:targets [:majority]}
+                  :pause     {:targets [:all]}
+                  :kill      {:targets [:all]}
+                  :interval  5})]
     (merge tests/noop-test
            opts
            {:name "d-engine"
             :os   debian/os
             :db   db
             :client  (Client. nil nil (:endpoints opts))
-            :nemesis (nemesis/partition-random-halves)
+            :nemesis (:nemesis nemesis)
             :checker (independent/checker
                       (checker/compose
                        {:linear (checker/linearizable {:model     (model/cas-register)
@@ -122,11 +131,7 @@
                                (->> (gen/mix [r w])
                                     (gen/stagger 1/2)
                                     (gen/limit 40))))
-                            (gen/nemesis
-                             (cycle [(gen/sleep 5)
-                                     {:type :info, :f :start}
-                                     (gen/sleep 5)
-                                     {:type :info, :f :stop}]))
+                            (gen/nemesis (:generator nemesis))
                             (gen/time-limit (:time-limit opts)))})))
 
 (def cli-opts
