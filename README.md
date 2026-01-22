@@ -2,6 +2,35 @@
 
 [Jepsen](https://jepsen.io/) tests for validating linearizability of d-engine under network partitions and node failures.
 
+## Test Coverage
+
+### Current Scope
+
+d-engine-jepsen validates the following correctness properties:
+
+#### ✅ Tested Scenarios
+
+- **Linearizability**: Single-key read/write operations maintain strict ordering
+- **Network partitions**: Cluster recovers correctly after majority/minority splits
+- **Node failures**: Leader election and log replication after crash/restart
+- **Process suspension**: System handles slow nodes (SIGSTOP/SIGCONT)
+- **Concurrent operations**: Multiple clients writing to independent keys
+
+### What This Test Suite Guarantees
+
+If tests pass, d-engine provides:
+
+1. ✅ Linearizable reads/writes - operations appear atomic and real-time ordered
+2. ✅ Partition tolerance - no split-brain during network failures
+3. ✅ Durability - committed writes survive leader crashes
+4. ✅ Single-leader safety - only one leader per term
+
+This test suite does NOT guarantee:
+
+1. ❌ Distributed lock correctness (requires CAS operations)
+2. ❌ Write conflict detection (requires append workload)
+3. ❌ Dynamic cluster stability (requires membership testing)
+
 ## Prerequisites
 
 - Docker & Docker Compose
