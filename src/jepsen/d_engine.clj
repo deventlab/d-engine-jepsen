@@ -48,8 +48,7 @@
   (setup! [this test])
 
   (invoke! [this test op]
-    (let [[k v] (:value op)
-          crash-type (if (= :read (:f op)) :fail :info)]
+    (let [[k v] (:value op)]
       (c/with-session node session
         (try+
          (case (:f op)
@@ -63,19 +62,49 @@
            :write
            (do
              (c/exec ctl-bin :--endpoints endpoints :put (str k) (str v))
-             (assoc op :type :ok)))
+             (assoc op :type :ok)
+             )
+           )
 
          (catch [:type :jepsen.control/nonzero-exit] e
            (let [err (str (:err e) (:out e))]
              (cond
+               ;; Definite failures - operation definitely did not occur
                (re-find #"(?i)key not found" err)
-               (assoc op :type :fail :error :not-found)
+               (assoc op :type :fail :error [:not-found err])
 
-               (re-find #"(?i)cluster unavailable|connection refused" err)
-               (assoc op :type crash-type :error :cluster-unavailable)
+               (re-find #"(?i)connection refused|no route to host" err)
+               (assoc op :type :fail :error [:connection-refused err])
 
+               (re-find #"(?i)invalid argument" err)
+               (assoc op :type :fail :error [:invalid-argument err])
+
+               ;; Indefinite failures - operation outcome unknown
+               ;; For writes: might have succeeded before crash
+               ;; For reads: use :fail to be conservative
+               (re-find #"(?i)cluster unavailable" err)
+               (assoc op :type (if (= :read (:f op)) :fail :info)
+                      :error [:cluster-unavailable err])
+
+               (re-find #"(?i)timeout|deadline exceeded" err)
+               (assoc op :type (if (= :read (:f op)) :fail :info)
+                      :error [:timeout err])
+
+               (re-find #"(?i)leader changed|not leader" err)
+               (assoc op :type (if (= :read (:f op)) :fail :info)
+                      :error [:leadership-change err])
+
+               ;; Unknown errors - treat as indefinite for safety
                :else
-               (assoc op :type crash-type :error err))))))))
+               (assoc op :type (if (= :read (:f op)) :fail :info)
+                      :error [:unknown err])
+               )
+             )
+           )
+        )
+      )
+    )
+  )
 
   (teardown! [this test])
 
@@ -125,8 +154,8 @@
                                                        :algorithm :linear})
                         :timeline (timeline/html)}))
             :generator (->> (independent/concurrent-generator
-                             3 ; Concurrent 3 independent key spaces
-                             (range 3) ; Keyspace
+                             3
+                             (range 3)
                              (fn [k]
                                (->> (gen/mix [r w])
                                     (gen/stagger 1/2)
