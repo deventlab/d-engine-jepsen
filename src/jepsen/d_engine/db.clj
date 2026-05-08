@@ -11,7 +11,7 @@
 (def binary (or (System/getenv "D_ENGINE_BINARY")
                 "three-nodes-embedded-linux-amd64"))
 (def ctl-binary (or (System/getenv "D_ENGINE_CTL_BINARY")
-                    "dengine_ctl-linux-amd64"))
+                    "client-usage-standalone-demo-linux-amd64"))
 (def s3-base-url (System/getenv "S3_BASE_URL"))
 (def logfile (str dir "/d-engine.log"))
 (def pidfile (str dir "/d-engine.pid"))
