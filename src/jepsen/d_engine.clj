@@ -15,6 +15,8 @@
    [jepsen.control.util :as cu]
    [jepsen.d-engine.db :as d-db]
    [jepsen.d-engine.nemesis :as d-nemesis]
+   [jepsen.d-engine.bank :as bank]
+   [jepsen.d-engine.set :as set-workload]
    [jepsen.os.debian :as debian]
    [knossos.model :as model]
    [slingshot.slingshot :refer [try+]]))
@@ -128,11 +130,32 @@
                                     :algorithm :linear})
      :timeline (timeline/html)})))
 
+(defn register-workload [opts]
+  {:client    (Client. nil nil (:endpoints opts))
+   :checker   (independent/checker
+               (checker/compose
+                {:linear   (checker/linearizable {:model     (model/cas-register)
+                                                   :algorithm :linear})
+                 :timeline (timeline/html)}))
+   :generator (independent/concurrent-generator
+               3
+               (range 3)
+               (fn [k]
+                 (->> (gen/mix [r w])
+                      (gen/stagger 1/2)
+                      (gen/limit 40))))})
+
+(defn workload [opts]
+  (case (:workload opts)
+    "bank" (bank/workload opts)
+    "set"  (set-workload/workload opts)
+    (register-workload opts)))
+
 (defn test-spec
   [opts]
   (println "opts:" opts)
   (println "Time limit set to:" (:time-limit opts))
-  (let [db (d-db/db)
+  (let [db      (d-db/db)
         nemesis (d-nemesis/nemesis-package
                  {:db        db
                   :nodes     (:nodes opts)
@@ -140,35 +163,31 @@
                   :partition {:targets [:majority]}
                   :pause     {:targets [:all]}
                   :kill      {:targets [:all]}
-                  :interval  5})]
+                  :interval  5})
+        wl      (workload opts)]
     (merge tests/noop-test
            opts
-           {:name "d-engine"
-            :os   debian/os
-            :db   db
-            :client  (Client. nil nil (:endpoints opts))
+           {:name    (str "d-engine-" (:workload opts "register"))
+            :os      debian/os
+            :db      db
+            :client  (:client wl)
             :nemesis (:nemesis nemesis)
-            :checker (independent/checker
-                      (checker/compose
-                       {:linear (checker/linearizable {:model     (model/cas-register)
-                                                       :algorithm :linear})
-                        :timeline (timeline/html)}))
-            :generator (->> (independent/concurrent-generator
-                             3
-                             (range 3)
-                             (fn [k]
-                               (->> (gen/mix [r w])
-                                    (gen/stagger 1/2)
-                                    (gen/limit 40))))
+            :checker (:checker wl)
+            :generator (->> (:generator wl)
+                            (gen/stagger 1/10)
                             (gen/nemesis (:generator nemesis))
                             (gen/time-limit (:time-limit opts)))})))
 
 (def cli-opts
   "Additional command line options."
-  [["-e" "--endpoints ENDPOINTS" "The endpoints for the d-engine cluster."
+  [["-e" "--endpoints ENDPOINTS" "d-engine gRPC endpoints (comma-separated)"
     :default "http://node1:9081,http://node2:9082,http://node3:9083"
     :parse-fn identity
-    :validate [(complement empty?) "Endpoints cannot be empty."]]])
+    :validate [(complement empty?) "Endpoints cannot be empty."]]
+   ["-w" "--workload NAME" "Workload to run: register (default), bank, set"
+    :default "register"
+    :parse-fn identity
+    :validate [#{"register" "bank" "set"} "must be one of: register, bank, set"]]])
 
 (defn -main
   "handles command lien arguments"
