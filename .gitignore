@@ -25,3 +25,8 @@ pom.xml.asc
 
 # Environment configuration (local, not committed)
 .env
+
+# Clojure tooling (local dev only)
+.clj-kondo/
+.lsp/
+output/

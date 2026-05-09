@@ -1,85 +1,73 @@
-(ns jepsen.d-engine.set
+(ns jepsen.d_engine.set
   "Set workload: every acknowledged add must survive faults and appear in reads.
    Encodes a set of integers 0-62 as a u64 bitmask; CAS ensures atomic updates."
-  (:require [clojure.tools.logging :refer [info]]
-            [clojure.string :as str]
+  (:require [clojure.string :as str]
+            [clojure.java.shell :as shell]
             [jepsen [checker :as checker]
                     [client :as client]
-                    [control :as c]
                     [generator :as gen]]
-            [jepsen.d-engine.db :as d-db]
             [slingshot.slingshot :refer [try+]]))
 
 (def set-key 42)
 
-(def ctl-bin (str d-db/dir "/bin/" d-db/ctl-binary))
+(defn ctl! [cmd endpoints & args]
+  (let [result (apply shell/sh cmd "--endpoints" endpoints (map str args))]
+    (if (zero? (:exit result))
+      (str/trim (:out result))
+      (throw (ex-info "ctl failed" {:err (:err result) :exit (:exit result)})))))
 
-(defn parse-long-nil [s]
-  (when s
-    (try (Long/parseLong (str/trim s))
+(defn parse-long-safe [s]
+  (when (and s (not (str/blank? s)))
+    (try (Long/parseLong s)
          (catch NumberFormatException _ nil))))
 
-(defn decode-set
-  "Decode a u64 bitmask into a set of present element indices."
-  [packed]
+(defn decode-set [packed]
   (->> (range 63)
        (filter #(not= 0 (bit-and packed (bit-shift-left 1 %))))
        set))
 
-(defrecord SetClient [session node endpoints]
+(defrecord SetClient [cmd endpoints]
   client/Client
 
-  (open! [this test node]
-    (assoc this :session (c/session node) :node node))
+  (open! [this test node] this)
 
   (setup! [this test]
-    (c/with-session node session
-      (c/exec ctl-bin :--endpoints endpoints :put (str set-key) "0")))
+    (ctl! cmd endpoints "put" (str set-key) "0"))
 
   (invoke! [this test op]
-    (c/with-session node session
-      (try+
-        (case (:f op)
-          :add
-          (loop [attempts 0]
-            (if (> attempts 50)
-              (assoc op :type :fail :error :too-many-retries)
-              (let [current  (or (parse-long-nil
-                                   (c/exec ctl-bin :--endpoints endpoints
-                                           :lget (str set-key)))
-                                 0)
-                    new-val  (bit-or current (bit-shift-left 1 (long (:value op))))
-                    result   (str/trim
-                               (c/exec ctl-bin :--endpoints endpoints
-                                       :cas (str set-key)
-                                       (str current) (str new-val)))]
-                (if (= result "true")
-                  (assoc op :type :ok)
-                  (recur (inc attempts))))))
+    (try+
+      (case (:f op)
+        :add
+        (loop [attempts 0]
+          (if (> attempts 50)
+            (assoc op :type :fail :error :too-many-retries)
+            (let [current (or (parse-long-safe (ctl! cmd endpoints "lget" (str set-key))) 0)
+                  new-val (bit-or current (bit-shift-left 1 (long (:value op))))
+                  result  (ctl! cmd endpoints "cas" (str set-key) (str current) (str new-val))]
+              (if (= result "true")
+                (assoc op :type :ok)
+                (recur (inc attempts))))))
 
-          :read
-          (let [packed (or (parse-long-nil
-                             (c/exec ctl-bin :--endpoints endpoints :lget (str set-key)))
-                           0)]
-            (assoc op :type :ok :value (decode-set packed))))
+        :read
+        (let [packed (or (parse-long-safe (ctl! cmd endpoints "lget" (str set-key))) 0)]
+          (assoc op :type :ok :value (decode-set packed))))
 
-        (catch [:type :jepsen.control/nonzero-exit] e
-          (let [err (str (:err e) (:out e))]
-            (cond
-              (re-find #"(?i)cluster unavailable|timeout|deadline exceeded|not leader" err)
-              (assoc op :type :fail :error [:unavailable err])
-              :else
-              (assoc op :type :fail :error [:unknown err])))))))
+      (catch clojure.lang.ExceptionInfo e
+        (let [err (str (ex-message e) " " (pr-str (ex-data e)))]
+          (cond
+            (re-find #"(?i)cluster unavailable|timeout|deadline exceeded|not leader" err)
+            (assoc op :type :fail :error [:unavailable err])
+            :else
+            (assoc op :type :fail :error [:unknown err]))))))
 
   (teardown! [this test])
 
-  (close! [this test]
-    (when session (c/disconnect session))))
+  (close! [this test]))
 
 (defn add-op [_ _] {:type :invoke :f :add :value (rand-int 30)})
 (defn read-op [_ _] {:type :invoke :f :read :value nil})
 
 (defn workload [opts]
-  {:client    (SetClient. nil nil (:endpoints opts))
+  {:client    (SetClient. (:command opts) (:endpoints opts))
    :checker   (checker/set-full)
    :generator (gen/mix [add-op read-op])})

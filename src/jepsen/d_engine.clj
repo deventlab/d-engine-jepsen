@@ -2,117 +2,121 @@
   (:require
    [clojure.tools.logging :refer :all]
    [clojure.string :as str]
+   [verschlimmbesserung.core :as v]
    [jepsen [checker :as checker]
     [cli :as cli]
     [client :as client]
     [control :as c]
-    [db :as db]
     [generator :as gen]
     [independent :as independent]
     [nemesis :as nemesis]
     [tests :as tests]]
    [jepsen.checker.timeline :as timeline]
    [jepsen.control.util :as cu]
-   [jepsen.d-engine.db :as d-db]
-   [jepsen.d-engine.nemesis :as d-nemesis]
-   [jepsen.d-engine.bank :as bank]
-   [jepsen.d-engine.set :as set-workload]
-   [jepsen.os.debian :as debian]
+   [clojure.java.shell :as shell]
+   [jepsen.os :as os]
    [knossos.model :as model]
-   [slingshot.slingshot :refer [try+]]))
+   [slingshot.slingshot :refer [try+]]
+   [clojure.tools.cli :refer [parse-opts]]
+   [jepsen.d_engine.bank :as bank]
+   [jepsen.d_engine.set :as set-workload]))
 
 ;; ========== Operation Definition ==========
+;; Update operation commands to match v0.1.4 API
 (defn r [_ _] {:type :invoke, :f :read, :value nil})
 (defn w [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
 
-;; ========== Client Implementation ==========
-(def ctl-bin (str "/opt/d-engine/bin/"
-                  (or (System/getenv "D_ENGINE_CTL_BINARY")
-                      "dengine_ctl-linux-amd64")))
+;; Adjust mixed ratio: 70% linear reads + 30% normal reads
+(def mixed-reads (gen/mix [{:weight 7, :gen r} {:weight 3, :gen r}]))
 
+;; ========== Command execution tool ==========
+(defn ctl-command
+  "Execute the dengine_ctl command and process the output"
+  [cmd & args]
+  (let [command (concat [cmd] args) ; Ensure everything is a string
+        _ (info "Executing command: " (pr-str command))  ; Better logging
+        result (apply shell/sh command)] ; Add Rust debugging information
+    (println "Executing command:" command)  ;; Log the command being executed
+    (info "Command output:" (:out result))
+    (info "Command error:" (:err result))
+    (if (zero? (:exit result))
+      (do
+        (println "Success:" (:out result))  ;; Log success output
+        (:out result))
+      (throw (ex-info "Command failed"
+                      {:exit (:exit result)
+                       :err (:err result)
+                       :out (:out result)})))))
+
+;; ========== Client Implementation ==========
 (defn parse-long-nil
-  "Parses a string to a Long. Returns nil on failure."
+  "Parses a string to a Long. Passes through `nil`."
   [s]
+  (println "Parsing raw string:" (pr-str s))
   (when s
     (try
-      (Long/parseLong (str/trim s))
-      (catch NumberFormatException _ nil))))
+      (-> s
+          (clojure.string/trim) ; Clean leading and trailing whitespace (including newlines)
+          (Long/parseLong))
+      (catch NumberFormatException _
+        nil)))) ; Return nil if parsing fails
 
-(defrecord Client [session node endpoints]
-  client/Client
+(defn client
+  "A client for a single compare-and-set register"
+  [cmd endpoints]
+  (assert (string? endpoints) (str "ENDPOINTS MUST BE STRING. GOT: " endpoints))
+  (reify client/Client
 
-  (open! [this test node]
-    (info "Opening client for node:" node)
-    (assoc this
-           :session (c/session node)
-           :node node))
+    (open! [this test node]
+      (info "Opening client for node:" node)
+      this)
 
-  (setup! [this test])
-
-  (invoke! [this test op]
-    (let [[k v] (:value op)]
-      (c/with-session node session
+    (invoke! [this test op]
+      (println "Received operation:" op)
+      (let [[k v] (:value op)
+            ; Read operation failures are marked as :fail, write operations are marked as :info
+            crash-type (if (#{:get :lget} (:f op)) :fail :info)]
         (try+
          (case (:f op)
-           :read
-           (let [result (parse-long-nil
-                         (c/exec ctl-bin :--endpoints endpoints :lget (str k)))]
-             (if result
-               (assoc op :type :ok :value (independent/tuple k result))
-               (assoc op :type :fail :error :not-found)))
+            ; Linear read (lget)
+           :read (let [result (parse-long-nil
+                               (ctl-command cmd "--endpoints" endpoints "lget" (str k)))]
+                   (if result
+                     (assoc op :type :ok, :value (independent/tuple k result))
+                     (assoc op :type :fail, :error :not-found)))
 
-           :write
-           (do
-             (c/exec ctl-bin :--endpoints endpoints :put (str k) (str v))
-             (assoc op :type :ok)
-             )
-           )
+; Write operation (put)
+           :write (do
+                    (println "endpoints:" endpoints "; Putting value:" v "for key:" k)
+                    (ctl-command cmd "--endpoints" endpoints "put" (str k) (str v))
+                    (assoc op :type :ok)))
 
-         (catch [:type :jepsen.control/nonzero-exit] e
-           (let [err (str (:err e) (:out e))]
+; ===== Error handling =====
+         (catch java.net.SocketTimeoutException e
+           (assoc op :type crash-type, :error :timeout))
+
+         (catch [:exit 4005] e ; cluster not available
+           (assoc op :type crash-type :error :cluster-unavailable))
+
+         (catch Exception e
+           (let [err-msg (or (.getMessage e)
+                             (some-> e ex-data :err)
+                             (some-> e ex-data :body))]
              (cond
-               ;; Definite failures - operation definitely did not occur
-               (re-find #"(?i)key not found" err)
-               (assoc op :type :fail :error [:not-found err])
+               (and err-msg (str/includes? (str/lower-case err-msg) "key not found"))
+               (assoc op :type :fail :error :not-found)
 
-               (re-find #"(?i)connection refused|no route to host" err)
-               (assoc op :type :fail :error [:connection-refused err])
+               (and err-msg (str/includes? (str/lower-case err-msg) "cluster unavailable"))
+               (assoc op :type crash-type :error :cluster-unavailable)
 
-               (re-find #"(?i)invalid argument" err)
-               (assoc op :type :fail :error [:invalid-argument err])
-
-               ;; Indefinite failures - operation outcome unknown
-               ;; For writes: might have succeeded before crash
-               ;; For reads: use :fail to be conservative
-               (re-find #"(?i)cluster unavailable" err)
-               (assoc op :type (if (= :read (:f op)) :fail :info)
-                      :error [:cluster-unavailable err])
-
-               (re-find #"(?i)timeout|deadline exceeded" err)
-               (assoc op :type (if (= :read (:f op)) :fail :info)
-                      :error [:timeout err])
-
-               (re-find #"(?i)leader changed|not leader" err)
-               (assoc op :type (if (= :read (:f op)) :fail :info)
-                      :error [:leadership-change err])
-
-               ;; Unknown errors - treat as indefinite for safety
                :else
-               (assoc op :type (if (= :read (:f op)) :fail :info)
-                      :error [:unknown err])
-               )
-             )
-           )
-        )
-      )
-    )
-  )
+               (assoc op :type crash-type :error (or err-msg "unknown error"))))))))
 
-  (teardown! [this test])
+    (close! [_ _]
+      (info "Closing client"))
 
-  (close! [this test]
-    (when session
-      (c/disconnect session))))
+    (setup! [_ _])
+    (teardown! [_ _])))
 
 ;; ========== Checker Implementation ==========
 (defn split-history
@@ -130,12 +134,14 @@
                                     :algorithm :linear})
      :timeline (timeline/html)})))
 
-(defn register-workload [opts]
-  {:client    (Client. nil nil (:endpoints opts))
+(defn register-workload
+  "Original linearizable register workload."
+  [opts]
+  {:client    (client (:command opts) (:endpoints opts))
    :checker   (independent/checker
                (checker/compose
                 {:linear   (checker/linearizable {:model     (model/cas-register)
-                                                   :algorithm :linear})
+                                                  :algorithm :auto})
                  :timeline (timeline/html)}))
    :generator (independent/concurrent-generator
                3
@@ -145,7 +151,8 @@
                       (gen/stagger 1/2)
                       (gen/limit 40))))})
 
-(defn workload [opts]
+(defn workload
+  [opts]
   (case (:workload opts)
     "bank" (bank/workload opts)
     "set"  (set-workload/workload opts)
@@ -155,35 +162,34 @@
   [opts]
   (println "opts:" opts)
   (println "Time limit set to:" (:time-limit opts))
-  (let [db      (d-db/db)
-        nemesis (d-nemesis/nemesis-package
-                 {:db        db
-                  :nodes     (:nodes opts)
-                  :faults    #{:partition :kill :pause}
-                  :partition {:targets [:majority]}
-                  :pause     {:targets [:all]}
-                  :kill      {:targets [:all]}
-                  :interval  5})
-        wl      (workload opts)]
+  (let [wl (workload opts)]
     (merge tests/noop-test
-           opts
-           {:name    (str "d-engine-" (:workload opts "register"))
-            :os      debian/os
-            :db      db
-            :client  (:client wl)
-            :nemesis (:nemesis nemesis)
-            :checker (:checker wl)
+           {:name      (str "d-engine-" (:workload opts "register"))
+            :ssh       {:private-key-path "/root/.ssh/id_rsa"
+                        :strict-host-key-checking false}
+            :client    (:client wl)
+            :nemesis   (nemesis/partition-random-halves)
+            :checker   (:checker wl)
             :generator (->> (:generator wl)
                             (gen/stagger 1/10)
-                            (gen/nemesis (:generator nemesis))
-                            (gen/time-limit (:time-limit opts)))})))
+                            (gen/nemesis
+                             (cycle [(gen/sleep 10)
+                                     {:type :info, :f :start}
+                                     (gen/sleep 5)
+                                     {:type :info, :f :stop}]))
+                            (gen/time-limit (:time-limit opts)))}
+           opts)))
 
 (def cli-opts
   "Additional command line options."
-  [["-e" "--endpoints ENDPOINTS" "d-engine gRPC endpoints (comma-separated)"
-    :default "http://node1:9081,http://node2:9082,http://node3:9083"
+  [["-c" "--command CMD" "CLI binary path"
+    :default "client-usage-standalone-demo"
     :parse-fn identity
-    :validate [(complement empty?) "Endpoints cannot be empty."]]
+    :validate [(complement empty?) "command cannot be empty."]]
+   ["-e" "--endpoints ENDPOINTS" "d-engine gRPC endpoints (comma-separated)"
+    :default "http://node1:9080,http://node2:9080,http://node3:9080"
+    :parse-fn identity
+    :validate [(complement empty?) "endpoints cannot be empty."]]
    ["-w" "--workload NAME" "Workload to run: register (default), bank, set"
     :default "register"
     :parse-fn identity
