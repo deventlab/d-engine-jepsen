@@ -18,7 +18,7 @@ COMPOSE_FILE     ?= ./docker-compose.yml
 # Restart Docker Compose stack
 restart-stack:
 	@echo "Cleaning output directories..."
-	@rm -rf ../output/logs/* ../output/db/*
+	@rm -rf ./output/logs/* ./output/db/*
 	@echo "Restarting Docker Compose stack..."
 	@docker compose -f $(COMPOSE_FILE) down
 	@docker compose -f $(COMPOSE_FILE) up -d
