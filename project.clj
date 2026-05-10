@@ -1,4 +1,4 @@
-(defproject jepsen.dengine "0.1.4"
+(defproject jepsen.dengine "0.2.4"
   :description "A Jepsen test for d-engine"
   :license {:name "MIT License"
             :url "https://opensource.org/licenses/MIT"}

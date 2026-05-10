@@ -1,4 +1,4 @@
-(ns jepsen.d-engine.nemesis
+(ns jepsen.d_engine.nemesis
   "Nemesis implementations for d-engine testing"
   (:require [clojure.tools.logging :refer [info]]
             [jepsen.nemesis :as nemesis]
@@ -6,18 +6,20 @@
             [jepsen.generator :as gen]))
 
 (defn nemesis-package
-  "Constructs a nemesis and generators for d-engine using Jepsen's combined nemesis framework.
+  "Constructs a nemesis package for d-engine, instantiating only the requested fault types.
 
-  Options:
-    :faults    - Set of fault types to inject (e.g., #{:partition :kill :pause})
-    :interval  - Time between nemesis operations (seconds)
-    :partition - Partition configuration (e.g., {:targets [:majority]})
-    :pause     - Process pause configuration (e.g., {:targets [:all]})
-    :kill      - Process kill configuration (e.g., {:targets [:all]})"
+  Uses nc/nemesis-packages selectively to avoid unconditional setup! of all nemeses
+  (clock nemesis installs build-essential, bitflip downloads a binary — both fail in
+  our Docker environment which has no apt lists and no internet access from nodes).
+
+  Supported faults: :partition, :kill, :pause"
   [opts]
-  (let [opts (update opts :faults set)]
-    (-> (nc/nemesis-packages opts)
-        nc/compose-packages)))
+  ; kill and pause are both handled by nc/db-package in Jepsen 0.3.x
+  (let [faults (set (:faults opts))
+        pkgs   (cond-> []
+                 (:partition faults)              (conj (nc/partition-package opts))
+                 (some faults #{:kill :pause})    (conj (nc/db-package opts)))]
+    (nc/compose-packages pkgs)))
 
 (defn full-generator
   "Generator for mixed fault injection.
