@@ -14,6 +14,7 @@
    [clojure.java.shell :as shell]
    [jepsen.d_engine.bank    :as bank]
    [jepsen.d_engine.set     :as set-workload]
+   [jepsen.d_engine.append  :as append-workload]
    [jepsen.d_engine.db      :as db-module]
    [jepsen.d_engine.nemesis :as d-nemesis]))
 
@@ -96,6 +97,7 @@
   (case (:workload opts)
     "bank"   (bank/workload opts)
     "set"    (set-workload/workload opts)
+    "append" (append-workload/workload opts)
     (register-workload opts)))
 
 ;; ========== Test spec ==========
@@ -145,7 +147,7 @@
    ["-w" "--workload NAME" "Workload: register (default), bank, set"
     :default  "register"
     :parse-fn identity
-    :validate [#{"register" "bank" "set"} "must be one of: register, bank, set"]]
+    :validate [#{"register" "bank" "set" "append"} "must be one of: register, bank, set, append"]]
 
    [nil "--faults FAULTS" "Nemesis faults (comma-separated: partition,kill,pause / all / none)"
     :default  [:partition]

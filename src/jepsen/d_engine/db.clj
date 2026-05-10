@@ -1,6 +1,6 @@
 (ns jepsen.d_engine.db
   "Database lifecycle for d-engine Docker nodes.
-  setup!/teardown! are no-ops — Docker handles installation and config.
+  teardown! kills demo; setup! restarts it so the cluster reforms before each test.
   kill!/start!/pause!/resume! operate via SSH on the running demo process."
   (:require [clojure.tools.logging :refer [info warn]]
             [jepsen [control :as c]
@@ -40,13 +40,15 @@
 (defrecord DB []
   db/DB
   (setup! [_ test node]
-    ; Docker already started demo with correct config — nothing to install.
-    (info node "d-engine running in Docker, skipping setup"))
+    ; Demo is running from Docker startup — cluster lifecycle is managed by
+    ; restart-stack (docker compose down/up), not by Jepsen setup/teardown.
+    (info node "d-engine already running (Docker mode), skipping setup"))
 
   (teardown! [_ test node]
-    ; Leave data dirs intact (mounted from host). Just stop the process.
-    (info node "tearing down d-engine")
-    (kill!))
+    ; Do NOT kill demo here. teardown! runs before setup! at test start,
+    ; so killing here would leave the cluster dead for the entire test.
+    ; restart-stack resets state between test runs.
+    (info node "d-engine teardown skipped (Docker mode)"))
 
   db/LogFiles
   (log-files [_ test node]

@@ -1,16 +1,19 @@
 # docker/jepsen/Makefile
-.PHONY: test view report clean
+.PHONY: test test-all view report clean restart-stack ssh-setup
 
 # Configurable parameters
-TIME_LIMIT ?= 60
-TEST_COMMAND ?= client-usage-standalone-demo
-WORKLOAD ?= register
-NODE1 ?= node1
-NODE2 ?= node2
-NODE3 ?= node3
+TIME_LIMIT       ?= 60
+TEST_COMMAND     ?= client-usage-standalone-demo
+WORKLOAD         ?= register
+FAULTS           ?= partition
+RATE             ?= 10
+NEMESIS_INTERVAL ?= 10
+NODE1            ?= node1
+NODE2            ?= node2
+NODE3            ?= node3
 JEPSEN_CONTAINER ?= d-engine-jepsen-jepsen-1
-ENDPOINTS ?= http://node1:9081,http://node2:9082,http://node3:9083
-COMPOSE_FILE ?= ./docker-compose.yml
+ENDPOINTS        ?= http://node1:9081,http://node2:9082,http://node3:9083
+COMPOSE_FILE     ?= ./docker-compose.yml
 
 # Restart Docker Compose stack
 restart-stack:
@@ -22,10 +25,11 @@ restart-stack:
 	@echo "Waiting for cluster to initialize (10 seconds)..."
 	@sleep 10
 
-
-# Main test target
+# Run a single workload.
+# Override any parameter on the command line, e.g.:
+#   make test WORKLOAD=bank FAULTS=kill,partition RATE=20 TIME_LIMIT=120
 test: restart-stack
-	@echo "Starting Jepsen test with time limit: ${TIME_LIMIT}s"
+	@echo "Starting Jepsen test: workload=$(WORKLOAD) faults=$(FAULTS) rate=$(RATE) time=$(TIME_LIMIT)s"
 	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
 		  eval "$$(ssh-agent -s)" && \
 		  ssh-add /root/.ssh/id_rsa && \
@@ -36,7 +40,10 @@ test: restart-stack
 		    --endpoints '"${ENDPOINTS}"' \
 		    --time-limit '"${TIME_LIMIT}"' \
 		    --command '"${TEST_COMMAND}"' \
-		    --workload '"${WORKLOAD}"''
+		    --workload '"${WORKLOAD}"' \
+		    --faults '"${FAULTS}"' \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
 	@echo "Jepsen test finished, checking result..."
 	docker exec $(JEPSEN_CONTAINER) bash -c '\
 		lein trampoline run -m clojure.main -e "\
@@ -47,10 +54,25 @@ test: restart-stack
 						'\''knossos.model.Register model/->Register\
 						'\''knossos.model.CASRegister model/->CASRegister\
 						'\''knossos.model.Inconsistent model/->Inconsistent}\
-					}\
+					 :default (fn [_ v] v)}\
 					(slurp \"/app/store/latest/results.edn\"))\
 				:valid?)\
 				\"✅ PASS\" \"❌ FAIL\"))"'
+
+# Run all workloads sequentially against a fresh cluster each time.
+# Each workload exits non-zero on failure, stopping the suite early.
+#   make test-all
+#   make test-all FAULTS=kill,partition TIME_LIMIT=120
+test-all:
+	@echo "=== test-all: register ==="
+	$(MAKE) test WORKLOAD=register
+	@echo "=== test-all: bank ==="
+	$(MAKE) test WORKLOAD=bank
+	@echo "=== test-all: set ==="
+	$(MAKE) test WORKLOAD=set
+	@echo "=== test-all: append ==="
+	$(MAKE) test WORKLOAD=append
+	@echo "=== All workloads passed ✅ ==="
 
 # Set up SSH agent inside container
 ssh-setup:
