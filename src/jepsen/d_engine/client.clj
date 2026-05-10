@@ -39,7 +39,7 @@
   [endpoints-str node]
   (let [clean #(-> % (str/replace #"^https?://" "") (str/replace #"/$" ""))
         eps   (str/split endpoints-str #",")]
-    (or (->> eps (filter #(str/includes? % (str node))) first clean)
+    (or (some-> (->> eps (filter #(str/includes? % (str node))) first) clean)
         (clean (first eps)))))
 
 ;; ── Channel management ───────────────────────────────────────────────────────
