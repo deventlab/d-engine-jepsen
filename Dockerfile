@@ -58,11 +58,12 @@ RUN ln -sf /usr/share/zoneinfo/Asia/Shanghai /etc/localtime && \
 
 # Copy project files
 WORKDIR /app
+COPY java-src java-src
 COPY src src
 COPY project.clj project.clj
 
-# Install Clojure dependencies
-RUN lein deps
+# Install Clojure dependencies and compile Java stubs
+RUN lein deps && lein javac
 
 # Copy the compiled Rust binary
 COPY --from=builder /build/examples/client-usage-standalone/target/release/client-usage-standalone-demo /usr/local/bin/

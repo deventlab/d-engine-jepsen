@@ -5,7 +5,8 @@
   (:require [clojure.tools.logging :refer [info warn]]
             [jepsen [control :as c]
                     [db :as db]]
-            [jepsen.control.util :as cu]))
+            [jepsen.control.util :as cu]
+            [jepsen.d_engine.client :as grpc]))
 
 (def binary  "demo")
 (def logfile "/app/logs/d-engine-jepsen.log")
@@ -53,6 +54,22 @@
   db/LogFiles
   (log-files [_ test node]
     {logfile "d-engine-jepsen.log"})
+
+  db/Primary
+  (setup-primary! [_ test node])
+  (primaries [_ test]
+    (let [eps (:endpoints test)]
+      (->> (:nodes test)
+           (pmap (fn [node]
+                   (let [ep (grpc/find-endpoint eps node)
+                         ch (try (grpc/open-channel ep)
+                                 (catch Exception _ nil))]
+                     (when ch
+                       (try
+                         (when (= :ok (:type (grpc/lget ch 1)))
+                           node)
+                         (finally (grpc/close-channel ch)))))))
+           (remove nil?))))
 
   db/Process
   (start! [_ test node] (start! node))

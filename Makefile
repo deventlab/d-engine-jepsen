@@ -3,7 +3,6 @@
 
 # Configurable parameters
 TIME_LIMIT       ?= 60
-TEST_COMMAND     ?= client-usage-standalone-demo
 WORKLOAD         ?= register
 FAULTS           ?= partition
 RATE             ?= 10
@@ -39,7 +38,6 @@ test: restart-stack
 		    --node '"${NODE3}"' \
 		    --endpoints '"${ENDPOINTS}"' \
 		    --time-limit '"${TIME_LIMIT}"' \
-		    --command '"${TEST_COMMAND}"' \
 		    --workload '"${WORKLOAD}"' \
 		    --faults '"${FAULTS}"' \
 		    --rate '"${RATE}"' \

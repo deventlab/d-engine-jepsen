@@ -10,8 +10,7 @@
             [tests :as tests]]
    [jepsen.checker.timeline :as timeline]
    [knossos.model :as model]
-   [slingshot.slingshot :refer [try+]]
-   [clojure.java.shell :as shell]
+   [jepsen.d_engine.client  :as grpc]
    [jepsen.d_engine.bank    :as bank]
    [jepsen.d_engine.set     :as set-workload]
    [jepsen.d_engine.append  :as append-workload]
@@ -34,51 +33,34 @@
 (defn r [_ _] {:type :invoke, :f :read,  :value nil})
 (defn w [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
 
-(defn ctl-command [cmd & args]
-  (let [result (apply shell/sh cmd args)]
-    (info "cmd:" (pr-str (cons cmd args))
-          "exit:" (:exit result)
-          "out:"  (:out result))
-    (if (zero? (:exit result))
-      (:out result)
-      (throw (ex-info "Command failed"
-                      {:exit (:exit result)
-                       :err  (:err result)
-                       :out  (:out result)})))))
-
-(defn parse-long-nil [s]
-  (when s
-    (try (-> s str/trim Long/parseLong)
-         (catch NumberFormatException _ nil))))
-
-(defn register-client [cmd endpoints]
-  (reify client/Client
-    (open!    [this test node] this)
-    (setup!   [_ _])
-    (teardown![_ _])
-    (close!   [_ _])
-    (invoke!  [_ test op]
-      (let [[k v]       (:value op)
-            crash-type  (if (= :read (:f op)) :fail :info)]
-        (try+
-          (case (:f op)
-            :read  (let [res (parse-long-nil
-                               (ctl-command cmd "--endpoints" endpoints "lget" (str k)))]
-                     (if res
-                       (assoc op :type :ok, :value (independent/tuple k res))
-                       (assoc op :type :fail, :error :not-found)))
-            :write (do (ctl-command cmd "--endpoints" endpoints "put" (str k) (str v))
-                       (assoc op :type :ok)))
-          (catch clojure.lang.ExceptionInfo e
-            (let [err (str (ex-message e) " " (pr-str (ex-data e)))]
-              (cond
-                (re-find #"(?i)cluster unavailable|timeout|deadline exceeded|not leader" err)
-                (assoc op :type crash-type :error [:unavailable err])
-                :else
-                (assoc op :type crash-type :error [:unknown err])))))))))
+(defrecord RegisterClient [endpoints ch]
+  client/Client
+  (open! [this test node]
+    (assoc this :ch (grpc/open-channel (grpc/find-endpoint endpoints node))))
+  (setup!    [_ _])
+  (teardown! [_ _])
+  (close! [this _]
+    (when ch (grpc/close-channel ch)))
+  (invoke! [_ test op]
+    (let [[k v] (:value op)]
+      (case (:f op)
+        :read
+        (let [res (grpc/lget ch k)]
+          (case (:type res)
+            :ok   (if-let [val (:value res)]
+                    (assoc op :type :ok :value (independent/tuple k val))
+                    (assoc op :type :fail :error :not-found))
+            :info (assoc op :type :fail :error (:error res))
+            :fail (assoc op :type :fail :error (:error res))))
+        :write
+        (let [res (grpc/put! ch k v)]
+          (case (:type res)
+            :ok   (assoc op :type :ok)
+            :info (assoc op :type :info :error (:error res))
+            :fail (assoc op :type :fail :error (:error res))))))))
 
 (defn register-workload [opts]
-  {:client  (register-client (:command opts) (:endpoints opts))
+  {:client  (RegisterClient. (:endpoints opts) nil)
    :checker (independent/checker
               (checker/compose
                {:linear   (checker/linearizable {:model     (model/cas-register)
@@ -134,12 +116,7 @@
 ;; ========== CLI ==========
 
 (def cli-opts
-  [[nil "--command CMD" "CLI binary path"
-    :default  "client-usage-standalone-demo"
-    :parse-fn identity
-    :validate [(complement empty?) "command cannot be empty."]]
-
-   [nil "--endpoints ENDPOINTS" "d-engine endpoints (comma-separated)"
+  [[nil "--endpoints ENDPOINTS" "d-engine endpoints (comma-separated)"
     :default  "http://node1:9081/,http://node2:9082/,http://node3:9083/"
     :parse-fn identity
     :validate [(complement empty?) "endpoints cannot be empty."]]

@@ -1,12 +1,10 @@
 (ns jepsen.d_engine.bank
   "Bank workload: concurrent transfers under faults must preserve total balance.
    Encodes 3 account balances as a single packed u64 for atomic CAS."
-  (:require [clojure.string :as str]
-            [clojure.java.shell :as shell]
-            [jepsen [checker :as checker]
+  (:require [jepsen [checker :as checker]
                     [client :as client]
                     [generator :as gen]]
-            [slingshot.slingshot :refer [try+]]))
+            [jepsen.d_engine.client :as grpc]))
 
 (def bank-key     1)
 (def n-accounts   3)
@@ -24,63 +22,54 @@
 
 (def init-packed (pack init-balance init-balance init-balance))
 
-(defn ctl! [cmd endpoints & args]
-  (let [result (apply shell/sh cmd "--endpoints" endpoints (map str args))]
-    (if (zero? (:exit result))
-      (str/trim (:out result))
-      (throw (ex-info "ctl failed" {:err (:err result) :exit (:exit result)})))))
-
-(defn parse-long-safe [s]
-  (when (and s (not (str/blank? s)))
-    (try (Long/parseLong s)
-         (catch NumberFormatException _ nil))))
-
-(defrecord BankClient [cmd endpoints]
+(defrecord BankClient [endpoints ch]
   client/Client
 
-  (open! [this test node] this)
+  (open! [this test node]
+    (assoc this :ch (grpc/open-channel (grpc/find-endpoint endpoints node))))
 
   (setup! [this test]
-    (ctl! cmd endpoints "put" (str bank-key) (str init-packed)))
+    (grpc/put! ch bank-key init-packed))
 
   (invoke! [this test op]
-    (try+
-      (case (:f op)
-        :read
-        (let [packed (or (parse-long-safe (ctl! cmd endpoints "lget" (str bank-key)))
-                         init-packed)]
-          (assoc op :type :ok :value (zipmap (range n-accounts) (unpack packed))))
+    (case (:f op)
+      :read
+      (let [res (grpc/lget ch bank-key)]
+        (case (:type res)
+          :ok   (let [packed (or (:value res) init-packed)]
+                  (assoc op :type :ok :value (zipmap (range n-accounts) (unpack packed))))
+          :info (assoc op :type :info :error (:error res))
+          :fail (assoc op :type :fail :error (:error res))))
 
-        :transfer
-        (let [{:keys [from to amount]} (:value op)]
-          (loop [attempts 0]
-            (if (> attempts 50)
-              (assoc op :type :fail :error :too-many-retries)
-              (let [packed   (or (parse-long-safe (ctl! cmd endpoints "lget" (str bank-key)))
-                                 init-packed)
-                    bals     (vec (unpack packed))
-                    from-bal (nth bals from)]
-                (if (< from-bal amount)
-                  (assoc op :type :fail :error :insufficient-funds)
-                  (let [new-bals   (-> bals (update from - amount) (update to + amount))
-                        new-packed (apply pack new-bals)
-                        swapped    (ctl! cmd endpoints "cas"
-                                        (str bank-key) (str packed) (str new-packed))]
-                    (if (= swapped "true")
-                      (assoc op :type :ok)
-                      (recur (inc attempts))))))))))
-
-      (catch clojure.lang.ExceptionInfo e
-        (let [err (str (ex-message e) " " (pr-str (ex-data e)))]
-          (cond
-            (re-find #"(?i)cluster unavailable|timeout|deadline exceeded|not leader" err)
-            (assoc op :type :info :error [:unavailable err])
-            :else
-            (assoc op :type :info :error [:unknown err]))))))
+      :transfer
+      (let [{:keys [from to amount]} (:value op)]
+        (loop [attempts 0]
+          (if (> attempts 50)
+            (assoc op :type :fail :error :too-many-retries)
+            (let [res (grpc/lget ch bank-key)]
+              (case (:type res)
+                :info (assoc op :type :info :error (:error res))
+                :fail (assoc op :type :fail :error (:error res))
+                :ok
+                (let [packed   (or (:value res) init-packed)
+                      bals     (vec (unpack packed))
+                      from-bal (nth bals from)]
+                  (if (< from-bal amount)
+                    (assoc op :type :fail :error :insufficient-funds)
+                    (let [new-bals   (-> bals (update from - amount) (update to + amount))
+                          new-packed (apply pack new-bals)
+                          cas-res    (grpc/cas! ch bank-key packed new-packed)]
+                      (case (:type cas-res)
+                        :ok   (if (:swapped cas-res)
+                                (assoc op :type :ok)
+                                (recur (inc attempts)))
+                        :info (assoc op :type :info :error (:error cas-res))
+                        :fail (assoc op :type :fail :error (:error cas-res)))))))))))))
 
   (teardown! [this test])
 
-  (close! [this test]))
+  (close! [this test]
+    (when ch (grpc/close-channel ch))))
 
 (defn bank-checker []
   (let [expected (* n-accounts init-balance)]
@@ -100,6 +89,6 @@
            :amount (inc (rand-int 5))}})
 
 (defn workload [opts]
-  {:client    (BankClient. (:command opts) (:endpoints opts))
+  {:client    (BankClient. (:endpoints opts) nil)
    :checker   (bank-checker)
    :generator (gen/mix [t r])})

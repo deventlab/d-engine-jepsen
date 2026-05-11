@@ -30,3 +30,10 @@ pom.xml.asc
 .clj-kondo/
 .lsp/
 output/
+*.bak
+.claudeignore
+safe-split-commits.sh
+CLAUDE.md
+.claude/
+/.rules
+.github/copilot-instructions.md
