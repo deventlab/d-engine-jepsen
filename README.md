@@ -15,6 +15,18 @@ d-engine-jepsen validates the following correctness properties:
 - **Node failures**: Leader election and log replication after crash/restart
 - **Process suspension**: System handles slow nodes (SIGSTOP/SIGCONT)
 - **Concurrent operations**: Multiple clients writing to independent keys
+- **Snapshot installation**: Lagged followers recover via snapshot after log compaction
+- **Snapshot transfer**: Leader sends snapshot to minority nodes after kill/restart
+- **Write conflict detection**: CAS-based append operations checked for ordering anomalies (Elle)
+
+### Workloads
+
+| Workload   | Checker                  | Description                              |
+| ---------- | ------------------------ | ---------------------------------------- |
+| `register` | Linearizable (Knossos)   | Single-key read/write                    |
+| `bank`     | Balance invariant        | Concurrent transfers across accounts     |
+| `set`      | Set membership           | Concurrent add/read                      |
+| `append`   | Elle (sequential)        | List-append with ordering anomaly detection |
 
 ### What This Test Suite Guarantees
 
@@ -24,12 +36,12 @@ If tests pass, d-engine provides:
 2. ✅ Partition tolerance - no split-brain during network failures
 3. ✅ Durability - committed writes survive leader crashes
 4. ✅ Single-leader safety - only one leader per term
+5. ✅ Snapshot recovery - restarted nodes catch up correctly via snapshot transfer
 
 This test suite does NOT guarantee:
 
 1. ❌ Distributed lock correctness (requires CAS operations)
-2. ❌ Write conflict detection (requires append workload)
-3. ❌ Dynamic cluster stability (requires membership testing)
+2. ❌ Dynamic cluster stability (requires membership testing)
 
 ## Prerequisites
 

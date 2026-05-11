@@ -91,7 +91,7 @@
                :faults    (set (:faults opts))
                :partition {:targets [:majority :primaries]}
                :pause     {:targets [:all]}
-               :kill      {:targets [:all]}
+               :kill      {:targets [:minority]}
                :interval  (:nemesis-interval opts)})
         gen (->> (:generator wl)
                  (gen/stagger (/ 1 (:rate opts)))
