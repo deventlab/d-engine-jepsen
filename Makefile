@@ -72,6 +72,20 @@ test-all:
 	$(MAKE) test WORKLOAD=append
 	@echo "=== All workloads passed ✅ ==="
 
+# High-concurrency stress test (RATE=200, 10 min).
+# Surfaces low-probability linearizability violations that 60s/rate=10 cannot.
+#   make test-stress
+#   make test-stress WORKLOAD=bank
+test-stress:
+	$(MAKE) test WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=200 TIME_LIMIT=600
+
+# Combined fault test (kill+partition, 5 min, moderate rate).
+# Validates client failover under simultaneous process kill and network partition.
+#   make test-combined
+#   make test-combined WORKLOAD=bank
+test-combined:
+	$(MAKE) test WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=50 TIME_LIMIT=300
+
 # Set up SSH agent inside container
 ssh-setup:
 	@echo "Configuring SSH keys..."

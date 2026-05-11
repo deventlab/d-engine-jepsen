@@ -22,19 +22,19 @@
 
 (def init-packed (pack init-balance init-balance init-balance))
 
-(defrecord BankClient [endpoints ch]
+(defrecord BankClient [endpoints channels]
   client/Client
 
   (open! [this test node]
-    (assoc this :ch (grpc/open-channel (grpc/find-endpoint endpoints node))))
+    (assoc this :channels (grpc/open-all-channels endpoints)))
 
   (setup! [this test]
-    (grpc/put! ch bank-key init-packed))
+    (grpc/put! channels bank-key init-packed))
 
   (invoke! [this test op]
     (case (:f op)
       :read
-      (let [res (grpc/lget ch bank-key)]
+      (let [res (grpc/lget channels bank-key)]
         (case (:type res)
           :ok   (let [packed (or (:value res) init-packed)]
                   (assoc op :type :ok :value (zipmap (range n-accounts) (unpack packed))))
@@ -46,7 +46,7 @@
         (loop [attempts 0]
           (if (> attempts 50)
             (assoc op :type :fail :error :too-many-retries)
-            (let [res (grpc/lget ch bank-key)]
+            (let [res (grpc/lget channels bank-key)]
               (case (:type res)
                 :info (assoc op :type :info :error (:error res))
                 :fail (assoc op :type :fail :error (:error res))
@@ -58,7 +58,7 @@
                     (assoc op :type :fail :error :insufficient-funds)
                     (let [new-bals   (-> bals (update from - amount) (update to + amount))
                           new-packed (apply pack new-bals)
-                          cas-res    (grpc/cas! ch bank-key packed new-packed)]
+                          cas-res    (grpc/cas! channels bank-key packed new-packed)]
                       (case (:type cas-res)
                         :ok   (if (:swapped cas-res)
                                 (assoc op :type :ok)
@@ -69,7 +69,7 @@
   (teardown! [this test])
 
   (close! [this test]
-    (when ch (grpc/close-channel ch))))
+    (when channels (grpc/close-all-channels channels))))
 
 (defn bank-checker []
   (let [expected (* n-accounts init-balance)]
@@ -89,6 +89,6 @@
            :amount (inc (rand-int 5))}})
 
 (defn workload [opts]
-  {:client    (BankClient. (:endpoints opts) nil)
+  {:client    (BankClient. (:endpoints opts) nil) ; channels populated in open!
    :checker   (bank-checker)
    :generator (gen/mix [t r])})

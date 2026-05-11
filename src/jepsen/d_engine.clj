@@ -33,34 +33,32 @@
 (defn r [_ _] {:type :invoke, :f :read,  :value nil})
 (defn w [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
 
-(defrecord RegisterClient [endpoints ch]
+(defrecord RegisterClient [endpoints channels]
   client/Client
   (open! [this test node]
-    (assoc this :ch (grpc/open-channel (grpc/find-endpoint endpoints node))))
+    (assoc this :channels (grpc/open-all-channels endpoints)))
   (setup!    [_ _])
   (teardown! [_ _])
   (close! [this _]
-    (when ch (grpc/close-channel ch)))
+    (when channels (grpc/close-all-channels channels)))
   (invoke! [_ test op]
     (let [[k v] (:value op)]
       (case (:f op)
         :read
-        (let [res (grpc/lget ch k)]
+        (let [res (grpc/lget channels k)]
           (case (:type res)
-            :ok   (if-let [val (:value res)]
-                    (assoc op :type :ok :value (independent/tuple k val))
-                    (assoc op :type :fail :error :not-found))
+            :ok   (assoc op :type :ok :value (independent/tuple k (:value res)))
             :info (assoc op :type :fail :error (:error res))
             :fail (assoc op :type :fail :error (:error res))))
         :write
-        (let [res (grpc/put! ch k v)]
+        (let [res (grpc/put! channels k v)]
           (case (:type res)
             :ok   (assoc op :type :ok)
             :info (assoc op :type :info :error (:error res))
             :fail (assoc op :type :fail :error (:error res))))))))
 
 (defn register-workload [opts]
-  {:client  (RegisterClient. (:endpoints opts) nil)
+  {:client  (RegisterClient. (:endpoints opts) nil) ; channels populated in open!
    :checker (independent/checker
               (checker/compose
                {:linear   (checker/linearizable {:model     (model/cas-register)
