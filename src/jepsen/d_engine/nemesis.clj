@@ -21,22 +21,3 @@
                  (some faults #{:kill :pause})    (conj (nc/db-package opts)))]
     (nc/compose-packages pkgs)))
 
-(defn full-generator
-  "Generator for mixed fault injection.
-  Cycles through network partitions, process kills, and process pauses."
-  [{:keys [interval] :or {interval 5}}]
-  (gen/phases
-   (cycle [(gen/sleep interval)
-           {:type :info, :f :start-partition}
-           (gen/sleep interval)
-           {:type :info, :f :stop-partition}
-
-           (gen/sleep interval)
-           {:type :info, :f :kill}
-           (gen/sleep (/ interval 2))
-           {:type :info, :f :start}
-
-           (gen/sleep interval)
-           {:type :info, :f :pause}
-           (gen/sleep (/ interval 2))
-           {:type :info, :f :resume}])))

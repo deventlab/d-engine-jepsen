@@ -26,21 +26,21 @@
 (defn encode-append [packed slot v]
   (bit-or (long packed) (bit-shift-left (long v) (* slot slot-bits))))
 
-(defrecord AppendClient [endpoints ch]
+(defrecord AppendClient [endpoints channels]
   client/Client
 
   (open! [this test node]
-    (assoc this :ch (grpc/open-channel (grpc/find-endpoint endpoints node))))
+    (assoc this :channels (grpc/open-all-channels endpoints)))
 
   (setup! [this test]
     (doseq [k (range n-keys)]
-      (grpc/put! ch k 0)))
+      (grpc/put! channels k 0)))
 
   (invoke! [this test op]
     (let [[mop-type k v] (first (:value op))]
       (case mop-type
         :r
-        (let [res (grpc/lget ch k)]
+        (let [res (grpc/lget channels k)]
           (case (:type res)
             :ok   (assoc op :type :ok :value [[:r k (decode (or (:value res) 0))]])
             :info (assoc op :type :info :error (:error res))
@@ -50,7 +50,7 @@
         (loop [attempts 0]
           (if (> attempts 50)
             (assoc op :type :fail :error :too-many-retries)
-            (let [res (grpc/lget ch k)]
+            (let [res (grpc/lget channels k)]
               (case (:type res)
                 :info (assoc op :type :info :error (:error res))
                 :fail (assoc op :type :fail :error (:error res))
@@ -60,7 +60,7 @@
                   (if (>= slots n-slots)
                     (assoc op :type :fail :error :list-full)
                     (let [new-packed (encode-append packed slots v)
-                          cas-res    (grpc/cas! ch k packed new-packed)]
+                          cas-res    (grpc/cas! channels k packed new-packed)]
                       (case (:type cas-res)
                         :ok   (if (:swapped cas-res)
                                 (assoc op :type :ok)
@@ -71,7 +71,7 @@
   (teardown! [this test])
 
   (close! [this test]
-    (when ch (grpc/close-channel ch))))
+    (when channels (grpc/close-all-channels channels))))
 
 (defn append-op [_ _]
   {:type :invoke :f :txn
@@ -82,7 +82,7 @@
    :value [[:r (rand-int n-keys) nil]]})
 
 (defn workload [opts]
-  {:client    (AppendClient. (:endpoints opts) nil)
+  {:client    (AppendClient. (:endpoints opts) nil) ; channels populated in open!
    :checker   (append/checker {:consistency-models [:sequential]
                                :anomalies          [:G-single]})
    :generator (gen/mix [append-op read-op])})

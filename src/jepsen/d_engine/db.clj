@@ -66,7 +66,7 @@
                                  (catch Exception _ nil))]
                      (when ch
                        (try
-                         (when (= :ok (:type (grpc/lget ch 1)))
+                         (when (= :ok (:type (grpc/lget [ch] 1)))
                            node)
                          (finally (grpc/close-channel ch)))))))
            (remove nil?))))

@@ -55,8 +55,22 @@
         (.usePlaintext)
         (.build))))
 
+(defn open-all-channels
+  "Opens one channel per endpoint. Returns a vector of ManagedChannels.
+   On node kill, application-level failover (with-failover) routes around the dead node."
+  [endpoints-str]
+  (let [clean #(-> % str/trim
+                   (str/replace #"^https?://" "")
+                   (str/replace #"/$" ""))
+        eps   (->> (str/split endpoints-str #",") (map clean))]
+    (mapv open-channel eps)))
+
 (defn close-channel [^ManagedChannel ch]
   (-> ch (.shutdown) (.awaitTermination 5 TimeUnit/SECONDS)))
+
+(defn close-all-channels [channels]
+  (doseq [^ManagedChannel ch channels]
+    (close-channel ch)))
 
 ;; ── Error classification ─────────────────────────────────────────────────────
 
@@ -83,97 +97,116 @@
   (-> (RaftClientServiceGrpc/newBlockingStub ch)
       (.withDeadlineAfter deadline-secs TimeUnit/SECONDS)))
 
+;; ── Failover ─────────────────────────────────────────────────────────────────
+
+(defn- with-failover
+  "Tries op (fn [ch]) on each channel in shuffled order until a non-:info result.
+   Shuffling spreads load across nodes; on node kill the dead channel is skipped
+   after one timeout, and surviving nodes answer the operation."
+  [channels op]
+  (loop [[ch & remaining] (shuffle (vec channels))]
+    (let [result (op ch)]
+      (if (and (= :info (:type result)) (seq remaining))
+        (recur remaining)
+        result))))
+
 ;; ── Public API ───────────────────────────────────────────────────────────────
 
 (defn put!
   "Write key→value. Returns :ok on success, :info if outcome unknown, :fail on definite error."
-  [^ManagedChannel ch key val]
-  (try
-    (let [insert  (-> (ClientApi$WriteCommand$Insert/newBuilder)
-                      (.setKey (encode-u64 key))
-                      (.setValue (encode-u64 val))
-                      (.build))
-          cmd     (-> (ClientApi$WriteCommand/newBuilder)
-                      (.setInsert insert)
-                      (.build))
-          req     (-> (ClientApi$ClientWriteRequest/newBuilder)
-                      (.setClientId client-id)
-                      (.setCommand cmd)
-                      (.build))
-          resp    (.handleClientWrite (blocking-stub ch) req)
-          code    (.getError resp)]
-      (if (= code Error$ErrorCode/SUCCESS)
-        {:type :ok}
-        {:type (classify-error-code code) :error (str code)}))
-    (catch StatusRuntimeException e
-      (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
-        {:type :info :error :deadline-exceeded}
-        {:type :info :error (str (.getStatus e))}))
-    (catch Exception e
-      {:type :info :error (str e)})))
+  [channels key val]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [insert  (-> (ClientApi$WriteCommand$Insert/newBuilder)
+                          (.setKey (encode-u64 key))
+                          (.setValue (encode-u64 val))
+                          (.build))
+              cmd     (-> (ClientApi$WriteCommand/newBuilder)
+                          (.setInsert insert)
+                          (.build))
+              req     (-> (ClientApi$ClientWriteRequest/newBuilder)
+                          (.setClientId client-id)
+                          (.setCommand cmd)
+                          (.build))
+              resp    (.handleClientWrite (blocking-stub ch) req)
+              code    (.getError resp)]
+          (if (= code Error$ErrorCode/SUCCESS)
+            {:type :ok}
+            {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
 
 (defn lget
   "Linearizable read of key. Returns {:type :ok :value v} or nil-value on KEY_NOT_EXIST,
    :info if outcome unknown, :fail on definite error."
-  [^ManagedChannel ch key]
-  (try
-    (let [req  (-> (ClientApi$ClientReadRequest/newBuilder)
-                   (.setClientId client-id)
-                   (.addKeys (encode-u64 key))
-                   (.setConsistencyPolicy ClientApi$ReadConsistencyPolicy/READ_CONSISTENCY_POLICY_LINEARIZABLE_READ)
-                   (.build))
-          resp (.handleClientRead (blocking-stub ch) req)
-          code (.getError resp)]
-      (cond
-        (= code Error$ErrorCode/SUCCESS)
-        (let [results (-> resp .getReadData .getResultsList)]
-          {:type :ok :value (when (seq results)
-                              (decode-u64 (.getValue (first results))))})
+  [channels key]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [req  (-> (ClientApi$ClientReadRequest/newBuilder)
+                       (.setClientId client-id)
+                       (.addKeys (encode-u64 key))
+                       (.setConsistencyPolicy ClientApi$ReadConsistencyPolicy/READ_CONSISTENCY_POLICY_LINEARIZABLE_READ)
+                       (.build))
+              resp (.handleClientRead (blocking-stub ch) req)
+              code (.getError resp)]
+          (cond
+            (= code Error$ErrorCode/SUCCESS)
+            (let [results (-> resp .getReadData .getResultsList)]
+              {:type :ok :value (when (seq results)
+                                  (decode-u64 (.getValue (first results))))})
 
-        (= code Error$ErrorCode/KEY_NOT_EXIST)
-        {:type :ok :value nil}
+            (= code Error$ErrorCode/KEY_NOT_EXIST)
+            {:type :ok :value nil}
 
-        :else
-        {:type (classify-error-code code) :error (str code)}))
-    (catch StatusRuntimeException e
-      (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
-        {:type :info :error :deadline-exceeded}
-        {:type :info :error (str (.getStatus e))}))
-    (catch Exception e
-      {:type :info :error (str e)})))
+            :else
+            {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
 
 (defn cas!
   "Atomic compare-and-swap. Returns {:type :ok :swapped true/false},
    :info if outcome unknown, :fail on definite error."
-  [^ManagedChannel ch key expected new-val]
-  (try
-    (let [cas  (-> (ClientApi$WriteCommand$CompareAndSwap/newBuilder)
-                   (.setKey (encode-u64 key))
-                   (.setExpectedValue (encode-u64 expected))
-                   (.setNewValue (encode-u64 new-val))
-                   (.build))
-          cmd  (-> (ClientApi$WriteCommand/newBuilder)
-                   (.setCompareAndSwap cas)
-                   (.build))
-          req  (-> (ClientApi$ClientWriteRequest/newBuilder)
-                   (.setClientId client-id)
-                   (.setCommand cmd)
-                   (.build))
-          resp (.handleClientWrite (blocking-stub ch) req)
-          code (.getError resp)]
-      (cond
-        (= code Error$ErrorCode/SUCCESS)
-        {:type :ok :swapped (-> resp .getWriteResult .getSucceeded)}
+  [channels key expected new-val]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [cas  (-> (ClientApi$WriteCommand$CompareAndSwap/newBuilder)
+                       (.setKey (encode-u64 key))
+                       (.setExpectedValue (encode-u64 expected))
+                       (.setNewValue (encode-u64 new-val))
+                       (.build))
+              cmd  (-> (ClientApi$WriteCommand/newBuilder)
+                       (.setCompareAndSwap cas)
+                       (.build))
+              req  (-> (ClientApi$ClientWriteRequest/newBuilder)
+                       (.setClientId client-id)
+                       (.setCommand cmd)
+                       (.build))
+              resp (.handleClientWrite (blocking-stub ch) req)
+              code (.getError resp)]
+          (cond
+            (= code Error$ErrorCode/SUCCESS)
+            {:type :ok :swapped (-> resp .getWriteResult .getSucceeded)}
 
-        ;; CAS failure (expected mismatch) is a definite :ok false
-        (= code Error$ErrorCode/STALE_OPERATION)
-        {:type :ok :swapped false}
+            ;; CAS failure (expected mismatch) is a definite :ok false
+            (= code Error$ErrorCode/STALE_OPERATION)
+            {:type :ok :swapped false}
 
-        :else
-        {:type (classify-error-code code) :error (str code)}))
-    (catch StatusRuntimeException e
-      (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
-        {:type :info :error :deadline-exceeded}
-        {:type :info :error (str (.getStatus e))}))
-    (catch Exception e
-      {:type :info :error (str e)})))
+            :else
+            {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
