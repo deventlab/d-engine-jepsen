@@ -26,8 +26,8 @@
   since SSH sessions don't inherit docker-compose environment."
   [node]
   (let [id    (node-id node)
-        conf  (str "config/n" id)
-        log   (str "./logs/" id)
+        conf  (str "/app/config/n" id)
+        log   (str "/app/logs/" id)
         mport (+ 8080 id)]
     (c/su
       (c/exec :bash :-c

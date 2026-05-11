@@ -43,9 +43,9 @@ flush_policy = { Batch = { idle_flush_interval_ms = 1000 } }
 max_buffered_entries = 10000
 
 [raft.snapshot]
-enable = false
-max_log_entries_before_snapshot = 10000
-snapshot_cool_down_since_last_check = { secs = 60 }
+enable = true
+max_log_entries_before_snapshot = 50
+snapshot_cool_down_since_last_check = { secs = 5 }
 snapshots_dir = "./snapshots/"
 retained_log_entries = 3
 
