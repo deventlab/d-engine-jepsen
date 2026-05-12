@@ -85,12 +85,12 @@ This test suite requires two d-engine binaries:
 
 1. **three-nodes-embedded** - d-engine standalone cluster binary
    - Source: [examples/three-nodes-embedded](https://github.com/DEventLab/d-engine/tree/main/examples/three-nodes-embedded)
-   - Version: d-engine v0.2+
+   - Version: d-engine v0.2.4
    - Purpose: Runs a 3-node Raft cluster for testing
 
 2. **dengine_ctl** - d-engine client CLI tool
    - Source: [examples/client-usage-standalone](https://github.com/DEventLab/d-engine/tree/main/examples/client-usage-standalone)
-   - Version: d-engine v0.2+
+   - Version: d-engine v0.2.4
    - Purpose: Client to interact with the cluster (put/get operations)
 
 Both binaries are automatically downloaded from S3 during test setup. The download URLs are configured via `S3_BASE_URL` in `.env`.
@@ -139,24 +139,52 @@ make view
 ### Run Tests
 
 ```bash
-make test TIME_LIMIT=120
+# Default (register workload, partition fault, 60s)
+make test
+
+# Full parameter example
+make test WORKLOAD=set FAULTS=kill,partition TIME_LIMIT=120 RATE=20
 ```
 
-### Environment Variables
+### Test Parameters
 
-| Variable        | Default               | Description                |
-| --------------- | --------------------- | -------------------------- |
-| `TIME_LIMIT`    | 60                    | Test duration in seconds   |
-| `ENDPOINTS`     | http://node1:9081,... | d-engine endpoints         |
-| `SSH_KEYS_PATH` | ./sshkeys             | Path to SSH keys directory |
+| Parameter          | Default      | Options / Description |
+| ------------------ | ------------ | --------------------- |
+| `WORKLOAD`         | `register`   | `register` `bank` `set` `append` — which correctness property to test (see [Workloads](#workloads)) |
+| `FAULTS`           | `partition`  | `partition` `kill` `pause` `all` (comma-separated) — which failure modes to inject |
+| `TIME_LIMIT`       | `60`         | Test duration in seconds. 120 is a reasonable default; use 300+ for soak tests |
+| `RATE`             | `10`         | Target client operations per second. Higher values increase concurrency stress |
+| `NEMESIS_INTERVAL` | `10`         | Seconds between nemesis actions. Lower = faults arrive more frequently |
 
-### Binary Caching
+**`WORKLOAD` — what to test:**
 
-Binaries are downloaded once to `./bin/` and mounted into containers:
+| Value      | Tests what?                             | Checker |
+| ---------- | --------------------------------------- | ------- |
+| `register` | Single-key read/write is linearizable   | Knossos |
+| `bank`     | Transfers never lose or create money    | balance invariant |
+| `set`      | Every acknowledged add survives faults  | set-full |
+| `append`   | List-append has no ordering anomalies   | Elle |
+
+**`FAULTS` — how to break the cluster:**
+
+| Value       | What it does |
+| ----------- | ------------ |
+| `partition` | iptables network partition (majority / minority / primaries) |
+| `kill`      | SIGKILL the demo process on a minority of nodes |
+| `pause`     | SIGSTOP / SIGCONT (simulates a slow/frozen node) |
+| `all`       | All three combined |
+
+### Convenience Targets
 
 ```bash
-# Force re-download binaries
-make force-download
+# Run all four workloads sequentially (stops on first failure)
+make test-all FAULTS=kill,partition TIME_LIMIT=120
+
+# High-concurrency stress test (rate=200, 10 min)
+make test-stress WORKLOAD=set
+
+# Combined faults, moderate rate, 5 min
+make test-combined WORKLOAD=bank
 ```
 
 ### Other Commands

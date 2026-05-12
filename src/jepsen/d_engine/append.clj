@@ -73,9 +73,16 @@
   (close! [this test]
     (when channels (grpc/close-all-channels channels))))
 
+; slot-bits=8 → valid values 1-255. When exhausted, fall back to reads so
+; values never overflow the encoding and remain globally unique for Elle.
+(def max-val (dec (bit-shift-left 1 slot-bits)))  ; 255
+
 (defn append-op [_ _]
-  {:type :invoke :f :txn
-   :value [[:append (rand-int n-keys) (swap! next-val inc)]]})
+  (let [v (swap! next-val inc)]
+    {:type :invoke :f :txn
+     :value (if (<= v max-val)
+              [[:append (rand-int n-keys) v]]
+              [[:r (rand-int n-keys) nil]])}))
 
 (defn read-op [_ _]
   {:type :invoke :f :txn

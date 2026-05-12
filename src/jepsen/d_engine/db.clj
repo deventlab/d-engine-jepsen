@@ -22,21 +22,24 @@
   (c/su (cu/grepkill! binary)))
 
 (defn start!
-  "Restarts the demo binary. Env vars are reconstructed from node identity
-  since SSH sessions don't inherit docker-compose environment."
+  "Starts the demo binary if not already running.
+  Uses start-stop-daemon --background (double-fork) to fully escape the
+  sudo session that nohup/setsid cannot break out of."
   [node]
   (let [id    (node-id node)
         conf  (str "/app/config/n" id)
         log   (str "/app/logs/" id)
         mport (+ 8080 id)]
     (c/su
-      (c/exec :bash :-c
-        (str "nohup env"
-             " CONFIG_PATH=" conf
-             " LOG_DIR=" log
-             " METRICS_PORT=" mport
-             " RUST_LOG=demo=debug,d_engine=debug,hyper=warn,sled=warn"
-             " /usr/local/bin/demo >> " logfile " 2>&1 &")))))
+      (cu/start-daemon!
+        {:logfile logfile
+         :pidfile "/app/demo.pid"
+         :chdir   "/app"
+         :env     {"CONFIG_PATH"  conf
+                   "LOG_DIR"      log
+                   "METRICS_PORT" (str mport)
+                   "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
+        "/usr/local/bin/demo"))))
 
 (defrecord DB []
   db/DB
