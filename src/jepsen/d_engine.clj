@@ -93,13 +93,19 @@
                :pause     {:targets [:all]}
                :kill      {:targets [:minority]}
                :interval  (:nemesis-interval opts)})
-        gen (->> (:generator wl)
-                 (gen/stagger (/ 1 (:rate opts)))
-                 (gen/nemesis
-                   (gen/phases
-                     (gen/sleep 5)
-                     (:generator nem)))
-                 (gen/time-limit (:time-limit opts)))]
+        gen (gen/phases
+              (->> (:generator wl)
+                   (gen/stagger (/ 1 (:rate opts)))
+                   (gen/nemesis
+                     (gen/phases
+                       (gen/sleep 5)
+                       (:generator nem)))
+                   (gen/time-limit (:time-limit opts)))
+              (gen/log "Healing cluster")
+              (gen/nemesis (:final-generator nem))
+              (gen/log "Waiting for recovery")
+              (gen/sleep 10)
+              (gen/clients (:final-generator wl)))]
     (merge tests/noop-test
            opts
            {:name      (str "d-engine-" (:workload opts "register"))

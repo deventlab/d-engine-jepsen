@@ -55,10 +55,12 @@
   (close! [this test]
     (when channels (grpc/close-all-channels channels))))
 
-(defn add-op [_ _] {:type :invoke :f :add :value (rand-int 30)})
 (defn read-op [_ _] {:type :invoke :f :read :value nil})
 
 (defn workload [opts]
-  {:client    (SetClient. (:endpoints opts) nil) ; channels populated in open!
-   :checker   (checker/set-full)
-   :generator (gen/mix [add-op read-op])})
+  {:client          (SetClient. (:endpoints opts) nil)
+   :checker         (checker/set-full)
+   :generator       (gen/mix [(->> (range 63)
+                                   (map (fn [v] {:type :invoke :f :add :value v})))
+                               (repeatedly #(read-op nil nil))])
+   :final-generator (gen/once read-op)})
