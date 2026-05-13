@@ -26,7 +26,8 @@ d-engine-jepsen validates the following correctness properties:
 | `register` | Linearizable (Knossos)   | Single-key read/write                    |
 | `bank`     | Balance invariant        | Concurrent transfers across accounts     |
 | `set`      | Set membership           | Concurrent add/read                      |
-| `append`   | Elle (sequential)        | List-append with ordering anomaly detection |
+| `append`   | Elle (strict-serial)     | List-append with ordering anomaly detection |
+| `watch`    | Custom (order + phantom) | Watch stream delivers events in commit order |
 
 ### What This Test Suite Guarantees
 
@@ -164,6 +165,7 @@ make test WORKLOAD=set FAULTS=kill,partition TIME_LIMIT=120 RATE=20
 | `bank`     | Transfers never lose or create money    | balance invariant |
 | `set`      | Every acknowledged add survives faults  | set-full |
 | `append`   | List-append has no ordering anomalies   | Elle |
+| `watch`    | Watch stream delivers events in commit order, no phantoms | custom |
 
 **`FAULTS` — how to break the cluster:**
 
