@@ -5,7 +5,16 @@ Versions track d-engine releases — e.g. `v0.2.4` tests d-engine `v0.2.4`.
 
 ---
 
-## [0.2.4] — 2026-05-12
+## [0.2.4] — 2026-05-13
+
+### Changed
+
+- **`append` workload: upgrade consistency model to `:strict-serializable`** (`src/jepsen/d_engine/append.clj`)  
+  Changed `:consistency-models [:sequential]` → `[:strict-serializable]`. Sequential consistency
+  only verifies per-process ordering; strict serializability matches d-engine's actual Raft
+  guarantee (linearizability) and catches stale reads — a client seeing outdated data after
+  another client's write has already been committed and acknowledged.  
+  Also fixed docstring: encoding range is values 1–255 (not 1–127).
 
 ### Fixed
 

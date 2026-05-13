@@ -1,6 +1,6 @@
 (ns jepsen.d_engine.append
   "Append workload: checks list-append histories for anomalies using Elle.
-   Encodes an ordered sequence as a packed u64 (8 bits x 7 slots, values 1-127).
+   Encodes an ordered sequence as a packed u64 (8 bits x 7 slots, values 1-255).
    Uses CAS-based atomic append; Elle detects ordering anomalies (G-single, etc.)."
   (:require [jepsen [client :as client]
                     [generator :as gen]]
@@ -90,6 +90,6 @@
 
 (defn workload [opts]
   {:client    (AppendClient. (:endpoints opts) nil) ; channels populated in open!
-   :checker   (append/checker {:consistency-models [:sequential]
+   :checker   (append/checker {:consistency-models [:strict-serializable]
                                :anomalies          [:G-single]})
    :generator (gen/mix [append-op read-op])})
