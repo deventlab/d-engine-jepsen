@@ -5,6 +5,23 @@ Versions track d-engine releases — e.g. `v0.2.4` tests d-engine `v0.2.4`.
 
 ---
 
+## [Unreleased]
+
+### Added
+
+- **`watch` workload** (`src/jepsen/d_engine/watch.clj`)  
+  New workload targeting d-engine's `Watch` streaming gRPC RPC (ticket #12).  
+  One writer thread writes monotonically increasing values (1, 2, 3 …) to a
+  single key; the remaining threads each open repeated Watch streams (2-second
+  windows) and accumulate the PUT events they receive.  
+  The custom checker verifies two properties on every watcher's event log:
+  1. **No phantom values** — every observed value was acknowledged as written.
+  2. **No backward jumps** — events arrive in strictly increasing order, matching
+     Raft's total commit ordering.  
+  Registered as `--workload watch` in the CLI.
+
+---
+
 ## [0.2.4] — 2026-05-13
 
 ### Changed
