@@ -2,8 +2,8 @@
   "Watch workload: verifies key-change notifications are delivered in order.
    One writer writes monotonically increasing values to a single key; watcher
    threads subscribe via the Watch streaming RPC. The checker confirms:
-   - no phantom values (watcher observed a value nobody wrote)
-   - no backward jumps (events arrive in commit order, never reversed)"
+   - no backward jumps within a stream window (events arrive in strictly
+     increasing order, reflecting Raft's total commit ordering)"
   (:require [clojure.tools.logging :refer [warn]]
             [jepsen [checker   :as checker]
                     [client    :as client]

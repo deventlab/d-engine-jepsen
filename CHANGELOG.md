@@ -14,10 +14,10 @@ Versions track d-engine releases — e.g. `v0.2.4` tests d-engine `v0.2.4`.
   One writer thread writes monotonically increasing values (1, 2, 3 …) to a
   single key; the remaining threads each open repeated Watch streams (2-second
   windows) and accumulate the PUT events they receive.  
-  The custom checker verifies two properties on every watcher's event log:
-  1. **No phantom values** — every observed value was acknowledged as written.
-  2. **No backward jumps** — events arrive in strictly increasing order, matching
-     Raft's total commit ordering.  
+  The custom checker verifies: **no backward jumps within a stream window** —
+  events arrive in strictly increasing order, matching Raft's total commit
+  ordering. Cross-window ordering is intentionally skipped; the server
+  re-delivers the current value on each new subscription.  
   Registered as `--workload watch` in the CLI.
 
 ---
