@@ -31,18 +31,7 @@ d-engine-jepsen validates the following correctness properties:
 
 ### What This Test Suite Guarantees
 
-If tests pass, d-engine provides:
-
-1. ✅ Linearizable reads/writes - operations appear atomic and real-time ordered
-2. ✅ Partition tolerance - no split-brain during network failures
-3. ✅ Durability - committed writes survive leader crashes
-4. ✅ Single-leader safety - only one leader per term
-5. ✅ Snapshot recovery - restarted nodes catch up correctly via snapshot transfer
-
-This test suite does NOT guarantee:
-
-1. ❌ Distributed lock correctness (requires CAS operations)
-2. ❌ Dynamic cluster stability (requires membership testing)
+See [GUARANTEES.md](./GUARANTEES.md) for the full list of Jepsen-verified correctness properties and soak test results.
 
 ## Prerequisites
 
