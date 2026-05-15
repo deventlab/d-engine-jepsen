@@ -1,5 +1,5 @@
 # docker/jepsen/Makefile
-.PHONY: test test-all view report clean restart-stack ssh-setup
+.PHONY: test test-all test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup
 
 # Configurable parameters
 TIME_LIMIT       ?= 60
@@ -71,6 +71,120 @@ test-all:
 	@echo "=== test-all: append ==="
 	$(MAKE) test WORKLOAD=append
 	@echo "=== All workloads passed ✅ ==="
+
+# Membership workload: starts node4 and node5 as learners and verifies join/promote.
+# Uses a 5-node cluster (node4/5 begin sshd-only and are started by the membership nemesis).
+#   make test-membership
+#   make test-membership FAULTS=kill,partition TIME_LIMIT=300
+test-membership: restart-stack
+	@echo "Starting membership test: faults=$(FAULTS) time=$(TIME_LIMIT)s"
+	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
+		  eval "$$(ssh-agent -s)" && \
+		  ssh-add /root/.ssh/id_rsa && \
+		  lein run test \
+		    --node '"${NODE1}"' \
+		    --node '"${NODE2}"' \
+		    --node '"${NODE3}"' \
+		    --node node4 \
+		    --node node5 \
+		    --endpoints '"${ENDPOINTS}"' \
+		    --time-limit '"${TIME_LIMIT}"' \
+		    --workload membership \
+		    --faults '"${FAULTS}"' \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
+	@echo "Membership test finished, checking result..."
+	docker exec $(JEPSEN_CONTAINER) bash -c '\
+		lein trampoline run -m clojure.main -e "\
+			(require '\''[knossos.model :as model])\
+			(println \
+				(if (-> (clojure.edn/read-string \
+					{:readers {\
+						'\''knossos.model.Register model/->Register\
+						'\''knossos.model.CASRegister model/->CASRegister\
+						'\''knossos.model.Inconsistent model/->Inconsistent}\
+					 :default (fn [_ v] v)}\
+					(slurp \"/app/store/latest/results.edn\"))\
+				:valid?)\
+				\"✅ PASS\" \"❌ FAIL\"))"'
+
+# ReadOnly membership: node4/5 join with status=ReadOnly, must never be promoted.
+#   make test-membership-readonly
+#   make test-membership-readonly FAULTS=kill,partition TIME_LIMIT=300
+test-membership-readonly: restart-stack
+	@echo "Starting readonly-membership test: faults=$(FAULTS) time=$(TIME_LIMIT)s"
+	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
+		  eval "$$(ssh-agent -s)" && \
+		  ssh-add /root/.ssh/id_rsa && \
+		  lein run test \
+		    --node '"${NODE1}"' \
+		    --node '"${NODE2}"' \
+		    --node '"${NODE3}"' \
+		    --node node4 \
+		    --node node5 \
+		    --endpoints '"${ENDPOINTS}"' \
+		    --time-limit '"${TIME_LIMIT}"' \
+		    --workload membership \
+		    --membership-mode readonly \
+		    --faults '"${FAULTS}"' \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
+	@echo "Readonly-membership test finished, checking result..."
+	docker exec $(JEPSEN_CONTAINER) bash -c '\
+		lein trampoline run -m clojure.main -e "\
+			(require '\''[knossos.model :as model])\
+			(println \
+				(if (-> (clojure.edn/read-string \
+					{:readers {\
+						'\''knossos.model.Register model/->Register\
+						'\''knossos.model.CASRegister model/->CASRegister\
+						'\''knossos.model.Inconsistent model/->Inconsistent}\
+					 :default (fn [_ v] v)}\
+					(slurp \"/app/store/latest/results.edn\"))\
+				:valid?)\
+				\"✅ PASS\" \"❌ FAIL\"))"'
+
+# Single-learner membership: only node4 joins a 3-node cluster (3+1=4, even).
+# node4 cannot be promoted; after 5-min stale_learner_threshold it is BatchRemoved.
+# Runs with FAULTS=none by default: stale_learner_threshold is hardcoded at 300s and
+# cannot be configured; frequent leader elections under partition faults extend the
+# effective wait to 600-900s. Use FAULTS=none TIME_LIMIT=420 (default) for a clean
+# deterministic test, or FAULTS=partition TIME_LIMIT=900 for fault-injection coverage.
+#   make test-membership-single
+#   make test-membership-single FAULTS=partition TIME_LIMIT=900
+SINGLE_FAULTS ?= none
+test-membership-single: restart-stack
+	@echo "Starting single-learner membership test: faults=$(SINGLE_FAULTS) time=$(TIME_LIMIT)s"
+	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
+		  eval "$$(ssh-agent -s)" && \
+		  ssh-add /root/.ssh/id_rsa && \
+		  lein run test \
+		    --node '"${NODE1}"' \
+		    --node '"${NODE2}"' \
+		    --node '"${NODE3}"' \
+		    --node node4 \
+		    --node node5 \
+		    --endpoints '"${ENDPOINTS}"' \
+		    --time-limit '"${TIME_LIMIT}"' \
+		    --workload membership \
+		    --membership-mode single-learner \
+		    --faults '"${SINGLE_FAULTS}"' \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
+	@echo "Single-learner membership test finished, checking result..."
+	docker exec $(JEPSEN_CONTAINER) bash -c '\
+		lein trampoline run -m clojure.main -e "\
+			(require '\''[knossos.model :as model])\
+			(println \
+				(if (-> (clojure.edn/read-string \
+					{:readers {\
+						'\''knossos.model.Register model/->Register\
+						'\''knossos.model.CASRegister model/->CASRegister\
+						'\''knossos.model.Inconsistent model/->Inconsistent}\
+					 :default (fn [_ v] v)}\
+					(slurp \"/app/store/latest/results.edn\"))\
+				:valid?)\
+				\"✅ PASS\" \"❌ FAIL\"))"'
 
 # High-concurrency stress test (RATE=200, 10 min).
 # Surfaces low-probability linearizability violations that 60s/rate=10 cannot.

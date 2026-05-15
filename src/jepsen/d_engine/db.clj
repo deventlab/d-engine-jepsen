@@ -14,6 +14,7 @@
 (defn node-id [node]
   (case node
     "node1" 1 "node2" 2 "node3" 3
+    "node4" 4 "node5" 5
     (throw (ex-info "Unknown node" {:node node}))))
 
 (defn kill!
@@ -22,24 +23,24 @@
   (c/su (cu/grepkill! binary)))
 
 (defn start!
-  "Starts the demo binary if not already running.
-  Uses start-stop-daemon --background (double-fork) to fully escape the
-  sudo session that nohup/setsid cannot break out of."
-  [node]
-  (let [id    (node-id node)
-        conf  (str "/app/config/n" id)
-        log   (str "/app/logs/" id)
-        mport (+ 8080 id)]
-    (c/su
-      (cu/start-daemon!
-        {:logfile logfile
-         :pidfile "/app/demo.pid"
-         :chdir   "/app"
-         :env     {"CONFIG_PATH"  conf
-                   "LOG_DIR"      log
-                   "METRICS_PORT" (str mport)
-                   "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
-        "/usr/local/bin/demo"))))
+  "Starts the demo binary. config-override optionally replaces the default
+  /app/config/nN path (e.g. \"/app/config/n4-readonly\" for ReadOnly mode)."
+  ([node] (start! node nil))
+  ([node config-override]
+   (let [id    (node-id node)
+         conf  (or config-override (str "/app/config/n" id))
+         log   (str "/app/logs/" id)
+         mport (+ 8080 id)]
+     (c/su
+       (cu/start-daemon!
+         {:logfile logfile
+          :pidfile "/app/demo.pid"
+          :chdir   "/app"
+          :env     {"CONFIG_PATH"  conf
+                    "LOG_DIR"      log
+                    "METRICS_PORT" (str mport)
+                    "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
+         "/usr/local/bin/demo")))))
 
 (defrecord DB []
   db/DB
@@ -75,7 +76,7 @@
            (remove nil?))))
 
   db/Process
-  (start! [_ test node] (start! node))
+  (start! [_ test node] (start! node nil))
   (kill!  [_ test node] (kill!))
 
   db/Pause

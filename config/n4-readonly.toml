@@ -1,0 +1,88 @@
+# Docker Jepsen config for node 4 — ReadOnly Learner.
+# Joins the existing 3-node cluster but will NEVER be promoted to Voter.
+# role = 4 (Learner), status = 2 (ReadOnly) per v0.2.3+ enum values.
+
+[cluster]
+node_id = 4
+listen_address = "192.168.0.15:9085"
+initial_cluster = [
+    { id = 1, address = "192.168.0.11:9081", role = 1, status = 3 },
+    { id = 2, address = "192.168.0.12:9082", role = 1, status = 3 },
+    { id = 3, address = "192.168.0.13:9083", role = 1, status = 3 },
+    { id = 4, address = "192.168.0.15:9085", role = 4, status = 2 },
+]
+db_root_dir = "./db/4"
+log_dir = "./logs"
+
+[raft]
+general_raft_timeout_duration_in_ms = 100
+cmd_channel_capacity = 1024
+ordered_channel_capacity = 1024
+
+[raft.election]
+election_timeout_min = 1000
+election_timeout_max = 2000
+
+[raft.read_consistency]
+default_policy = "LeaseRead"
+lease_duration_ms = 500
+
+[raft.batching]
+max_batch_size = 200
+
+[raft.metrics]
+enable_backpressure = false
+enable_batch = false
+
+[raft.backpressure]
+max_pending_writes = 1000
+max_pending_reads = 500
+
+[raft.persistence]
+strategy = "MemFirst"
+flush_policy = { Batch = { idle_flush_interval_ms = 1000 } }
+max_buffered_entries = 10000
+
+[raft.snapshot]
+enable = true
+max_log_entries_before_snapshot = 50
+snapshot_cool_down_since_last_check = { secs = 5 }
+snapshots_dir = "./snapshots/"
+retained_log_entries = 3
+
+[raft.state_machine.lease]
+enabled = true
+cleanup_interval_ms = 1000
+max_cleanup_duration_ms = 1
+
+[network.control]
+request_timeout_in_ms = 100
+concurrency_limit = 50
+max_concurrent_streams = 4096
+connection_window_size = 4_194_304
+initial_stream_window_size = 2_097_152
+enable_connect_protocol = true
+tcp_keepalive_in_secs = 60
+http2_keep_alive_interval_in_secs = 15
+http2_keep_alive_timeout_in_secs = 10
+max_frame_size = 16_777_215
+http2_max_pending_accept_reset_streams = 1000
+http2_max_send_buffer_size = 8_388_608
+
+[network.data]
+connect_timeout_in_ms = 100
+request_timeout_in_ms = 300
+concurrency_limit = 100
+max_concurrent_streams = 4096
+connection_window_size = 8_388_608
+initial_stream_window_size = 4_194_304
+tcp_keepalive_in_secs = 60
+http2_keep_alive_interval_in_secs = 15
+http2_keep_alive_timeout_in_secs = 10
+max_frame_size = 16_777_215
+http2_adaptive_window = true
+http2_max_pending_accept_reset_streams = 2000
+http2_max_send_buffer_size = 16_777_216
+
+[storage]
+unified_db = false
