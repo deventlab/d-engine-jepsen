@@ -61,6 +61,47 @@ services:
       - "2023:22"
       - "9083:9083"
 
+  # node4 and node5 are learner nodes for the membership workload.
+  # They run sshd only on startup; the membership nemesis starts the demo
+  # binary via SSH when it's time for them to join the cluster.
+  node4:
+    <<: *node-base
+    environment:
+      ID: 4
+      PROMETHEUS_PORT: 8084
+      LISTEN_PORT: 9085
+      LOG_LEVEL: debug
+      CONFIG_PATH: config/n4
+      LOG_DIR: ./logs/4
+      METRICS_PORT: 8084
+    entrypoint: []
+    command: ["/usr/sbin/sshd", "-D"]
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.15
+    ports:
+      - "2025:22"
+      - "9085:9085"
+
+  node5:
+    <<: *node-base
+    environment:
+      ID: 5
+      PROMETHEUS_PORT: 8085
+      LISTEN_PORT: 9086
+      LOG_LEVEL: debug
+      CONFIG_PATH: config/n5
+      LOG_DIR: ./logs/5
+      METRICS_PORT: 8085
+    entrypoint: []
+    command: ["/usr/sbin/sshd", "-D"]
+    networks:
+      mynetwork:
+        ipv4_address: 192.168.0.16
+    ports:
+      - "2026:22"
+      - "9086:9086"
+
   jepsen:
     image: jepsen:2.0
     build:

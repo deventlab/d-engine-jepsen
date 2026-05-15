@@ -21,13 +21,14 @@ d-engine-jepsen validates the following correctness properties:
 
 ### Workloads
 
-| Workload   | Checker                  | Description                              |
-| ---------- | ------------------------ | ---------------------------------------- |
-| `register` | Linearizable (Knossos)   | Single-key read/write                    |
-| `bank`     | Balance invariant        | Concurrent transfers across accounts     |
-| `set`      | Set membership           | Concurrent add/read                      |
-| `append`   | Elle (strict-serial)     | List-append with ordering anomaly detection |
-| `watch`    | Custom (order + phantom) | Watch stream delivers events in commit order |
+| Workload     | Checker                  | Description                              |
+| ------------ | ------------------------ | ---------------------------------------- |
+| `register`   | Linearizable (Knossos)   | Single-key read/write                    |
+| `bank`       | Balance invariant        | Concurrent transfers across accounts     |
+| `set`        | Set membership           | Concurrent add/read                      |
+| `append`     | Elle (strict-serial)     | List-append with ordering anomaly detection |
+| `watch`      | Custom (order + phantom) | Watch stream delivers events in commit order |
+| `membership` | Custom (stream invariants) | Dynamic node join: node4/5 start as Learners and auto-promote to Voters; `watch_membership` streams verified for monotone committed-index, no member/learner overlap, and non-empty members |
 
 ### What This Test Suite Guarantees
 
@@ -148,13 +149,14 @@ make test WORKLOAD=set FAULTS=kill,partition TIME_LIMIT=120 RATE=20
 
 **`WORKLOAD` — what to test:**
 
-| Value      | Tests what?                             | Checker |
-| ---------- | --------------------------------------- | ------- |
-| `register` | Single-key read/write is linearizable   | Knossos |
-| `bank`     | Transfers never lose or create money    | balance invariant |
-| `set`      | Every acknowledged add survives faults  | set-full |
-| `append`   | List-append has no ordering anomalies   | Elle |
-| `watch`    | Watch stream delivers events in commit order, no phantoms | custom |
+| Value        | Tests what?                             | Checker |
+| ------------ | --------------------------------------- | ------- |
+| `register`   | Single-key read/write is linearizable   | Knossos |
+| `bank`       | Transfers never lose or create money    | balance invariant |
+| `set`        | Every acknowledged add survives faults  | set-full |
+| `append`     | List-append has no ordering anomalies   | Elle |
+| `watch`      | Watch stream delivers events in commit order, no phantoms | custom |
+| `membership` | node4/5 join as Learners and promote to Voters; stream invariants hold | custom |
 
 **`FAULTS` — how to break the cluster:**
 
