@@ -16,6 +16,7 @@
    [jepsen.d_engine.set        :as set-workload]
    [jepsen.d_engine.append     :as append-workload]
    [jepsen.d_engine.watch      :as watch-workload]
+   [jepsen.d_engine.scan-watch :as scan-watch-workload]
    [jepsen.d_engine.membership :as membership-workload]
    [jepsen.d_engine.db         :as db-module]
    [jepsen.d_engine.nemesis    :as d-nemesis]))
@@ -82,6 +83,7 @@
     "set"        (set-workload/workload opts)
     "append"     (append-workload/workload opts)
     "watch"      (watch-workload/workload opts)
+    "scan-watch" (scan-watch-workload/workload opts)
     "membership" (membership-workload/workload opts)
     (register-workload opts)))
 
@@ -153,11 +155,11 @@
     :parse-fn identity
     :validate [(complement empty?) "endpoints cannot be empty."]]
 
-   ["-w" "--workload NAME" "Workload: register (default), bank, set, append, watch, membership"
+   ["-w" "--workload NAME" "Workload: register (default), bank, set, append, watch, scan-watch, membership"
     :default  "register"
     :parse-fn identity
-    :validate [#{"register" "bank" "set" "append" "watch" "membership"}
-               "must be one of: register, bank, set, append, watch, membership"]]
+    :validate [#{"register" "bank" "set" "append" "watch" "scan-watch" "membership"}
+               "must be one of: register, bank, set, append, watch, scan-watch, membership"]]
 
    [nil "--membership-mode MODE"
     "Membership workload mode: promotable (default), readonly, single-learner"

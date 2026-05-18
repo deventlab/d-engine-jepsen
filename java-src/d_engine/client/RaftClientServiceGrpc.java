@@ -108,6 +108,68 @@ public final class RaftClientServiceGrpc {
     return getWatchMethod;
   }
 
+  // Custom byte[] marshallers for ScanRequest/ScanResponse.
+  // These hand-coded messages avoid requiring a protoc version compatible with protobuf-java 3.25.3.
+  private static final io.grpc.MethodDescriptor.Marshaller<d_engine.client.ScanMessages.ScanRequest>
+      SCAN_REQUEST_MARSHALLER = new io.grpc.MethodDescriptor.Marshaller<d_engine.client.ScanMessages.ScanRequest>() {
+        @Override
+        public java.io.InputStream stream(d_engine.client.ScanMessages.ScanRequest value) {
+          try {
+            return new java.io.ByteArrayInputStream(value.toByteArray());
+          } catch (java.io.IOException e) {
+            throw new RuntimeException(e);
+          }
+        }
+        @Override
+        public d_engine.client.ScanMessages.ScanRequest parse(java.io.InputStream stream) {
+          try {
+            return d_engine.client.ScanMessages.ScanRequest.newBuilder().build(); // server-side only
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        }
+      };
+
+  private static final io.grpc.MethodDescriptor.Marshaller<d_engine.client.ScanMessages.ScanResponse>
+      SCAN_RESPONSE_MARSHALLER = new io.grpc.MethodDescriptor.Marshaller<d_engine.client.ScanMessages.ScanResponse>() {
+        @Override
+        public java.io.InputStream stream(d_engine.client.ScanMessages.ScanResponse value) {
+          throw new UnsupportedOperationException("client-side only");
+        }
+        @Override
+        public d_engine.client.ScanMessages.ScanResponse parse(java.io.InputStream stream) {
+          try {
+            byte[] data = stream.readAllBytes();
+            return d_engine.client.ScanMessages.ScanResponse.parseFrom(data);
+          } catch (Exception e) {
+            throw new RuntimeException(e);
+          }
+        }
+      };
+
+  private static volatile io.grpc.MethodDescriptor<d_engine.client.ScanMessages.ScanRequest,
+      d_engine.client.ScanMessages.ScanResponse> getHandleClientScanMethod;
+
+  public static io.grpc.MethodDescriptor<d_engine.client.ScanMessages.ScanRequest,
+      d_engine.client.ScanMessages.ScanResponse> getHandleClientScanMethod() {
+    io.grpc.MethodDescriptor<d_engine.client.ScanMessages.ScanRequest, d_engine.client.ScanMessages.ScanResponse> getHandleClientScanMethod;
+    if ((getHandleClientScanMethod = RaftClientServiceGrpc.getHandleClientScanMethod) == null) {
+      synchronized (RaftClientServiceGrpc.class) {
+        if ((getHandleClientScanMethod = RaftClientServiceGrpc.getHandleClientScanMethod) == null) {
+          RaftClientServiceGrpc.getHandleClientScanMethod = getHandleClientScanMethod =
+              io.grpc.MethodDescriptor.<d_engine.client.ScanMessages.ScanRequest, d_engine.client.ScanMessages.ScanResponse>newBuilder()
+              .setType(io.grpc.MethodDescriptor.MethodType.UNARY)
+              .setFullMethodName(generateFullMethodName(SERVICE_NAME, "HandleClientScan"))
+              .setSampledToLocalTracing(true)
+              .setRequestMarshaller(SCAN_REQUEST_MARSHALLER)
+              .setResponseMarshaller(SCAN_RESPONSE_MARSHALLER)
+              .build();
+        }
+      }
+    }
+    return getHandleClientScanMethod;
+  }
+
   private static volatile io.grpc.MethodDescriptor<d_engine.client.ClientApi.WatchMembershipRequest,
       d_engine.client.ClientApi.MembershipSnapshot> getWatchMembershipMethod;
 
@@ -233,6 +295,11 @@ public final class RaftClientServiceGrpc {
      * - Use `committed_index` as an idempotency key in the receiver.
      * </pre>
      */
+    default void handleClientScan(d_engine.client.ScanMessages.ScanRequest request,
+        io.grpc.stub.StreamObserver<d_engine.client.ScanMessages.ScanResponse> responseObserver) {
+      io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getHandleClientScanMethod(), responseObserver);
+    }
+
     default void watchMembership(d_engine.client.ClientApi.WatchMembershipRequest request,
         io.grpc.stub.StreamObserver<d_engine.client.ClientApi.MembershipSnapshot> responseObserver) {
       io.grpc.stub.ServerCalls.asyncUnimplementedUnaryCall(getWatchMembershipMethod(), responseObserver);
@@ -353,6 +420,13 @@ public final class RaftClientServiceGrpc {
     }
 
     /**
+     */
+    public d_engine.client.ScanMessages.ScanResponse handleClientScan(d_engine.client.ScanMessages.ScanRequest request) {
+      return io.grpc.stub.ClientCalls.blockingUnaryCall(
+          getChannel(), getHandleClientScanMethod(), getCallOptions(), request);
+    }
+
+    /**
      * <pre>
      * Watch for changes to a specific key.
      * Returns a stream of WatchResponse events whenever the watched key changes.
@@ -427,8 +501,9 @@ public final class RaftClientServiceGrpc {
 
   private static final int METHODID_HANDLE_CLIENT_WRITE = 0;
   private static final int METHODID_HANDLE_CLIENT_READ = 1;
-  private static final int METHODID_WATCH = 2;
-  private static final int METHODID_WATCH_MEMBERSHIP = 3;
+  private static final int METHODID_HANDLE_CLIENT_SCAN = 2;
+  private static final int METHODID_WATCH = 3;
+  private static final int METHODID_WATCH_MEMBERSHIP = 4;
 
   private static final class MethodHandlers<Req, Resp> implements
       io.grpc.stub.ServerCalls.UnaryMethod<Req, Resp>,
@@ -454,6 +529,10 @@ public final class RaftClientServiceGrpc {
         case METHODID_HANDLE_CLIENT_READ:
           serviceImpl.handleClientRead((d_engine.client.ClientApi.ClientReadRequest) request,
               (io.grpc.stub.StreamObserver<d_engine.client.ClientApi.ClientResponse>) responseObserver);
+          break;
+        case METHODID_HANDLE_CLIENT_SCAN:
+          serviceImpl.handleClientScan((d_engine.client.ScanMessages.ScanRequest) request,
+              (io.grpc.stub.StreamObserver<d_engine.client.ScanMessages.ScanResponse>) responseObserver);
           break;
         case METHODID_WATCH:
           serviceImpl.watch((d_engine.client.ClientApi.WatchRequest) request,
@@ -495,6 +574,13 @@ public final class RaftClientServiceGrpc {
               d_engine.client.ClientApi.ClientReadRequest,
               d_engine.client.ClientApi.ClientResponse>(
                 service, METHODID_HANDLE_CLIENT_READ)))
+        .addMethod(
+          getHandleClientScanMethod(),
+          io.grpc.stub.ServerCalls.asyncUnaryCall(
+            new MethodHandlers<
+              d_engine.client.ScanMessages.ScanRequest,
+              d_engine.client.ScanMessages.ScanResponse>(
+                service, METHODID_HANDLE_CLIENT_SCAN)))
         .addMethod(
           getWatchMethod(),
           io.grpc.stub.ServerCalls.asyncServerStreamingCall(
@@ -559,6 +645,7 @@ public final class RaftClientServiceGrpc {
               .setSchemaDescriptor(new RaftClientServiceFileDescriptorSupplier())
               .addMethod(getHandleClientWriteMethod())
               .addMethod(getHandleClientReadMethod())
+              .addMethod(getHandleClientScanMethod())
               .addMethod(getWatchMethod())
               .addMethod(getWatchMembershipMethod())
               .build();

@@ -8,9 +8,11 @@ Verified by [Jepsen](https://jepsen.io/) testing on d-engine v0.2.4.
 
 ### 1. Linearizability
 
-Read/write operations appear to execute atomically at a single point in real time, consistent with the global commit order imposed by Raft. No linearizability violation was observed across all test runs.
+Read/write operations appear to execute atomically at a single point in real time, consistent with the global commit order imposed by Raft. No linearizability violation was observed under crash fault injection.
 
-**Verified by**: `register` workload (Knossos linearizability checker), `append` workload (Elle strict-serializable checker). Jepsen testing finds violations; passing runs do not constitute a formal proof of correctness.
+**Caveat**: Linearizability is **not** guaranteed under network partition. d-engine's `LinearizableRead` implementation does not confirm quorum leadership before serving reads — it relies on the lease expiry window rather than a Raft §8 read-index round-trip. An isolated leader may serve stale reads for up to 500ms while its lease remains valid, which Knossos detects as a linearizability violation. This is a known bug tracked separately; `make test` exercises the `register` workload under `FAULTS=kill` (crash only) to avoid non-deterministic failures from this window.
+
+**Verified by**: `register` workload (Knossos linearizability checker, `FAULTS=kill`), `append` workload (Elle strict-serializable checker, `FAULTS=partition`). Jepsen testing finds violations; passing runs do not constitute a formal proof of correctness.
 
 ### 2. Partition Tolerance — No Split-Brain
 
@@ -54,7 +56,19 @@ Concurrent cross-key transfers preserve the total balance across all accounts. N
 
 **Verified by**: `bank` workload (balance invariant checker).
 
-### 8. Dynamic Cluster Membership
+### 8. Scan-then-Watch Reconnection Correctness
+
+The zero-race-window reconnect pattern (Watch first → Scan → drain events with `revision > scan_revision`) satisfies three invariants under fault injection:
+
+- **No gap**: every committed PUT is eventually observed by at least one reader (in the scan snapshot or a subsequent watch event).
+- **No phantom**: every value observed by a reader corresponds to a committed write.
+- **Revision monotonicity**: within one watch session, event revisions strictly increase; the first watch-event revision is always ≥ the scan revision.
+
+The `WATCH_EVENT_TYPE_CANCELED` path (server-side buffer overflow) is also exercised — triggered by injecting `RATE=200` writes with `FAULTS=none` — and the reconnect loop correctly re-syncs without gaps or phantoms.
+
+**Verified by**: `scan-watch` workload (custom no-gap / no-phantom / monotonicity checker), tested across partition faults, kill+partition faults, and high-rate buffer-overflow scenarios.
+
+### 9. Dynamic Cluster Membership
 
 New nodes can join the cluster at runtime as Learners. The membership stream satisfies these safety invariants across all modes:
 
@@ -106,11 +120,12 @@ All 63 attempted elements were either stably confirmed present or never read aft
 
 | Workload   | `FAULTS=kill,partition` | `FAULTS=all` |
 | ---------- | ----------------------- | ------------ |
-| `register` | ✅ PASS                 | ✅ PASS      |
-| `bank`     | ✅ PASS                 | ✅ PASS      |
-| `set`      | ✅ PASS                 | ✅ PASS      |
-| `append`   | ✅ PASS                 | ✅ PASS      |
-| `watch`    | ✅ PASS                 | ✅ PASS      |
+| `register`   | ✅ PASS                 | ✅ PASS      |
+| `bank`       | ✅ PASS                 | ✅ PASS      |
+| `set`        | ✅ PASS                 | ✅ PASS      |
+| `append`     | ✅ PASS                 | ✅ PASS      |
+| `watch`      | ✅ PASS                 | ✅ PASS      |
+| `scan-watch` | ✅ PASS                 | —            |
 
 **Membership tests** — three modes verified on 2026-05-15:
 
@@ -121,6 +136,15 @@ All 63 attempted elements were either stably confirmed present or never read aft
 | `single-learner`  | `none`      | 420s       | ✅ PASS |
 
 Note: `single-learner` uses `FAULTS=none` by default because `stale_learner_threshold` is hardcoded at 300s and frequent leader elections under partition extend the effective eviction time to 600–900s. Use `FAULTS=partition TIME_LIMIT=900` for fault-injection coverage of this mode.
+
+**Scan-watch tests** — verified on 2026-05-17:
+
+| Scenario                                             | Faults          | Time limit | Result  |
+| ---------------------------------------------------- | --------------- | ---------- | ------- |
+| Partition fault                                      | `partition`     | 60s        | ✅ PASS |
+| Kill + partition                                     | `kill,partition`| 300s       | ✅ PASS |
+| No-fault correctness                                 | `none`          | 60s        | ✅ PASS |
+| Buffer-overflow CANCELED (`RATE=200`)                | `none`          | 120s       | ✅ PASS |
 
 ---
 
@@ -141,4 +165,4 @@ The following properties are **not** covered by this test suite:
 - Jepsen version: 0.3.5
 - Cluster: 3 nodes (Docker containers, single host); 5 nodes for `membership` workload (node4/5 join dynamically)
 - Network faults are simulated via iptables on a single physical host; results do not capture real-world network latency or partial packet loss
-- Checker: Knossos (linearizability), Elle (strict-serializable), custom (watch ordering, membership stream invariants), balance invariant, set-full
+- Checker: Knossos (linearizability), Elle (strict-serializable), custom (watch ordering, scan-watch no-gap/no-phantom/monotonicity, membership stream invariants), balance invariant, set-full
