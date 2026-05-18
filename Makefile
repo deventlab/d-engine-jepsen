@@ -1,5 +1,5 @@
 # docker/jepsen/Makefile
-.PHONY: test test-all test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup
+.PHONY: test run-workload test-scan-watch test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup
 
 # Configurable parameters
 TIME_LIMIT       ?= 60
@@ -24,10 +24,35 @@ restart-stack:
 	@echo "Waiting for cluster to initialize (10 seconds)..."
 	@sleep 10
 
-# Run a single workload.
+# Run all workloads sequentially — 100% coverage of all Jepsen guarantees.
+# Each workload exits non-zero on failure, stopping the suite early.
+#   make test
+#   make test FAULTS=kill,partition TIME_LIMIT=120
+test:
+	@echo "=== test: register ==="
+	$(MAKE) run-workload WORKLOAD=register FAULTS=kill
+	@echo "=== test: bank ==="
+	$(MAKE) run-workload WORKLOAD=bank
+	@echo "=== test: set ==="
+	$(MAKE) run-workload WORKLOAD=set
+	@echo "=== test: append ==="
+	$(MAKE) run-workload WORKLOAD=append
+	@echo "=== test: watch ==="
+	$(MAKE) run-workload WORKLOAD=watch
+	@echo "=== test: scan-watch ==="
+	$(MAKE) test-scan-watch
+	@echo "=== test: membership (promotable) ==="
+	$(MAKE) test-membership
+	@echo "=== test: membership (readonly) ==="
+	$(MAKE) test-membership-readonly
+	@echo "=== test: membership (single-learner) ==="
+	$(MAKE) test-membership-single TIME_LIMIT=420
+	@echo "=== All workloads passed ✅ ==="
+
+# Run a single workload (internal helper).
 # Override any parameter on the command line, e.g.:
-#   make test WORKLOAD=bank FAULTS=kill,partition RATE=20 TIME_LIMIT=120
-test: restart-stack
+#   make run-workload WORKLOAD=bank FAULTS=kill,partition RATE=20 TIME_LIMIT=120
+run-workload: restart-stack
 	@echo "Starting Jepsen test: workload=$(WORKLOAD) faults=$(FAULTS) rate=$(RATE) time=$(TIME_LIMIT)s"
 	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
 		  eval "$$(ssh-agent -s)" && \
@@ -57,20 +82,41 @@ test: restart-stack
 				:valid?)\
 				\"✅ PASS\" \"❌ FAIL\"))"'
 
-# Run all workloads sequentially against a fresh cluster each time.
-# Each workload exits non-zero on failure, stopping the suite early.
-#   make test-all
-#   make test-all FAULTS=kill,partition TIME_LIMIT=120
-test-all:
-	@echo "=== test-all: register ==="
-	$(MAKE) test WORKLOAD=register
-	@echo "=== test-all: bank ==="
-	$(MAKE) test WORKLOAD=bank
-	@echo "=== test-all: set ==="
-	$(MAKE) test WORKLOAD=set
-	@echo "=== test-all: append ==="
-	$(MAKE) test WORKLOAD=append
-	@echo "=== All workloads passed ✅ ==="
+# Scan-then-watch reconnection workload.
+# Verifies no-gap, no-phantom, and revision-monotonicity under fault injection.
+# Typical usage:
+#   make test-scan-watch                              # partition faults, 60s
+#   make test-scan-watch FAULTS=kill,partition TIME_LIMIT=300
+#   make test-scan-watch RATE=200 FAULTS=none TIME_LIMIT=120  # trigger CANCELED via buffer overflow
+test-scan-watch: restart-stack
+	@echo "Starting scan-watch test: faults=$(FAULTS) rate=$(RATE) time=$(TIME_LIMIT)s"
+	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
+		  eval "$$(ssh-agent -s)" && \
+		  ssh-add /root/.ssh/id_rsa && \
+		  lein run test \
+		    --node '"${NODE1}"' \
+		    --node '"${NODE2}"' \
+		    --node '"${NODE3}"' \
+		    --endpoints '"${ENDPOINTS}"' \
+		    --time-limit '"${TIME_LIMIT}"' \
+		    --workload scan-watch \
+		    --faults '"${FAULTS}"' \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
+	@echo "scan-watch test finished, checking result..."
+	docker exec $(JEPSEN_CONTAINER) bash -c '\
+		lein trampoline run -m clojure.main -e "\
+			(require '\''[knossos.model :as model])\
+			(println \
+				(if (-> (clojure.edn/read-string \
+					{:readers {\
+						'\''knossos.model.Register model/->Register\
+						'\''knossos.model.CASRegister model/->CASRegister\
+						'\''knossos.model.Inconsistent model/->Inconsistent}\
+					 :default (fn [_ v] v)}\
+					(slurp \"/app/store/latest/results.edn\"))\
+				:valid?)\
+				\"✅ PASS\" \"❌ FAIL\"))"'
 
 # Membership workload: starts node4 and node5 as learners and verifies join/promote.
 # Uses a 5-node cluster (node4/5 begin sshd-only and are started by the membership nemesis).
@@ -191,14 +237,14 @@ test-membership-single: restart-stack
 #   make test-stress
 #   make test-stress WORKLOAD=bank
 test-stress:
-	$(MAKE) test WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=200 TIME_LIMIT=600
+	$(MAKE) run-workload WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=200 TIME_LIMIT=600
 
 # Combined fault test (kill+partition, 5 min, moderate rate).
 # Validates client failover under simultaneous process kill and network partition.
 #   make test-combined
 #   make test-combined WORKLOAD=bank
 test-combined:
-	$(MAKE) test WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=50 TIME_LIMIT=300
+	$(MAKE) run-workload WORKLOAD=$(WORKLOAD) FAULTS=kill,partition RATE=50 TIME_LIMIT=300
 
 # Set up SSH agent inside container
 ssh-setup:
