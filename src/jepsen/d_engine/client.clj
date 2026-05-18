@@ -6,8 +6,10 @@
   (:import
    [d_engine.client ClientApi$ClientWriteRequest
                     ClientApi$ClientReadRequest
+                    ScanMessages$ScanRequest
                     ClientApi$WriteCommand
                     ClientApi$WriteCommand$Insert
+                    ClientApi$WriteCommand$Delete
                     ClientApi$WriteCommand$CompareAndSwap
                     ClientApi$ReadConsistencyPolicy
                     RaftClientServiceGrpc]
@@ -204,6 +206,87 @@
 
             :else
             {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
+
+(defn put-bytes!
+  "Write a raw ByteString key → ByteString value.
+   Returns :ok on success, :info if outcome unknown, :fail on definite error."
+  [channels ^com.google.protobuf.ByteString key-bs ^com.google.protobuf.ByteString val-bs]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [insert (-> (ClientApi$WriteCommand$Insert/newBuilder)
+                         (.setKey key-bs)
+                         (.setValue val-bs)
+                         (.build))
+              cmd    (-> (ClientApi$WriteCommand/newBuilder)
+                         (.setInsert insert)
+                         (.build))
+              req    (-> (ClientApi$ClientWriteRequest/newBuilder)
+                         (.setClientId client-id)
+                         (.setCommand cmd)
+                         (.build))
+              resp   (.handleClientWrite (blocking-stub ch) req)
+              code   (.getError resp)]
+          (if (= code d_engine.error.Error$ErrorCode/SUCCESS)
+            {:type :ok}
+            {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
+
+(defn delete-bytes!
+  "Delete a raw ByteString key.
+   Returns :ok on success, :info if outcome unknown, :fail on definite error."
+  [channels ^com.google.protobuf.ByteString key-bs]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [del  (-> (ClientApi$WriteCommand$Delete/newBuilder)
+                       (.setKey key-bs)
+                       (.build))
+              cmd  (-> (ClientApi$WriteCommand/newBuilder)
+                       (.setDelete del)
+                       (.build))
+              req  (-> (ClientApi$ClientWriteRequest/newBuilder)
+                       (.setClientId client-id)
+                       (.setCommand cmd)
+                       (.build))
+              resp (.handleClientWrite (blocking-stub ch) req)
+              code (.getError resp)]
+          (if (= code d_engine.error.Error$ErrorCode/SUCCESS)
+            {:type :ok}
+            {:type (classify-error-code code) :error (str code)}))
+        (catch StatusRuntimeException e
+          (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
+            {:type :info :error :deadline-exceeded}
+            {:type :info :error (str (.getStatus e))}))
+        (catch Exception e
+          {:type :info :error (str e)})))))
+
+(defn scan-prefix
+  "Linearizable prefix scan. Returns {:type :ok :entries [{:key k :value v} ...] :revision r}
+   or :info/:fail on error. Entry keys/values are ByteStrings."
+  [channels ^com.google.protobuf.ByteString prefix-bs]
+  (with-failover channels
+    (fn [^ManagedChannel ch]
+      (try
+        (let [req  (-> (ScanMessages$ScanRequest/newBuilder)
+                       (.setClientId client-id)
+                       (.setPrefix prefix-bs)
+                       (.build))
+              resp (.handleClientScan (blocking-stub ch) req)
+              entries (mapv (fn [e] {:key (.getKey e) :value (.getValue e)})
+                            (.getEntriesList resp))]
+          {:type :ok :entries entries :revision (.getRevision resp)})
         (catch StatusRuntimeException e
           (if (= (.getCode (.getStatus e)) io.grpc.Status$Code/DEADLINE_EXCEEDED)
             {:type :info :error :deadline-exceeded}
