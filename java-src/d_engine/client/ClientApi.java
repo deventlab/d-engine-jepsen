@@ -212,6 +212,15 @@ public final class ClientApi {
      * <code>WATCH_EVENT_TYPE_DELETE = 1;</code>
      */
     WATCH_EVENT_TYPE_DELETE(1),
+    /**
+     * <pre>
+     * Watcher forcibly canceled by the server (e.g. buffer overflow).
+     * Client should re-sync via scan_prefix and re-register the watch.
+     * </pre>
+     *
+     * <code>WATCH_EVENT_TYPE_CANCELED = 2;</code>
+     */
+    WATCH_EVENT_TYPE_CANCELED(2),
     UNRECOGNIZED(-1),
     ;
 
@@ -231,6 +240,10 @@ public final class ClientApi {
      * <code>WATCH_EVENT_TYPE_DELETE = 1;</code>
      */
     public static final int WATCH_EVENT_TYPE_DELETE_VALUE = 1;
+    /**
+     * <code>WATCH_EVENT_TYPE_CANCELED = 2;</code>
+     */
+    public static final int WATCH_EVENT_TYPE_CANCELED_VALUE = 2;
 
 
     public final int getNumber() {
@@ -259,6 +272,7 @@ public final class ClientApi {
       switch (value) {
         case 0: return WATCH_EVENT_TYPE_PUT;
         case 1: return WATCH_EVENT_TYPE_DELETE;
+        case 2: return WATCH_EVENT_TYPE_CANCELED;
         default: return null;
       }
     }
@@ -9556,6 +9570,12 @@ public final class ClientApi {
      * @return The key.
      */
     com.google.protobuf.ByteString getKey();
+
+    /**
+     * <code>bool prefix = 3;</code>
+     * @return The prefix.
+     */
+    boolean getPrefix();
   }
   /**
    * <pre>
@@ -9626,6 +9646,21 @@ public final class ClientApi {
       return key_;
     }
 
+    public static final int PREFIX_FIELD_NUMBER = 3;
+    private boolean prefix_ = false;
+    /**
+     * <pre>
+     * When true, key is treated as a path prefix.
+     * </pre>
+     *
+     * <code>bool prefix = 3;</code>
+     * @return The prefix.
+     */
+    @java.lang.Override
+    public boolean getPrefix() {
+      return prefix_;
+    }
+
     private byte memoizedIsInitialized = -1;
     @java.lang.Override
     public final boolean isInitialized() {
@@ -9646,6 +9681,9 @@ public final class ClientApi {
       if (!key_.isEmpty()) {
         output.writeBytes(2, key_);
       }
+      if (prefix_) {
+        output.writeBool(3, prefix_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -9662,6 +9700,10 @@ public final class ClientApi {
       if (!key_.isEmpty()) {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(2, key_);
+      }
+      if (prefix_) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(3, prefix_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSize = size;
@@ -9928,6 +9970,9 @@ public final class ClientApi {
         if (other.getKey() != com.google.protobuf.ByteString.EMPTY) {
           setKey(other.getKey());
         }
+        if (other.getPrefix()) {
+          setPrefix(other.getPrefix());
+        }
         this.mergeUnknownFields(other.getUnknownFields());
         onChanged();
         return this;
@@ -9964,6 +10009,11 @@ public final class ClientApi {
                 bitField0_ |= 0x00000002;
                 break;
               } // case 18
+              case 24: {
+                prefix_ = input.readBool();
+                bitField0_ |= 0x00000004;
+                break;
+              } // case 24 (field 3, wire type 0)
               default: {
                 if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                   done = true; // was an endgroup tag
@@ -10053,6 +10103,35 @@ public final class ClientApi {
       public Builder clearKey() {
         bitField0_ = (bitField0_ & ~0x00000002);
         key_ = getDefaultInstance().getKey();
+        onChanged();
+        return this;
+      }
+      private boolean prefix_ = false;
+      /**
+       * <code>bool prefix = 3;</code>
+       * @return The prefix.
+       */
+      public boolean getPrefix() {
+        return prefix_;
+      }
+      /**
+       * <code>bool prefix = 3;</code>
+       * @param value The prefix to set.
+       * @return This builder for chaining.
+       */
+      public Builder setPrefix(boolean value) {
+        prefix_ = value;
+        bitField0_ |= 0x00000004;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>bool prefix = 3;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearPrefix() {
+        bitField0_ = (bitField0_ & ~0x00000004);
+        prefix_ = false;
         onChanged();
         return this;
       }
@@ -10181,6 +10260,12 @@ public final class ClientApi {
      * @return The error.
      */
     d_engine.error.Error.ErrorCode getError();
+
+    /**
+     * <code>uint64 revision = 5;</code>
+     * @return The revision.
+     */
+    long getRevision();
   }
   /**
    * <pre>
@@ -10307,6 +10392,21 @@ public final class ClientApi {
       return result == null ? d_engine.error.Error.ErrorCode.UNRECOGNIZED : result;
     }
 
+    public static final int REVISION_FIELD_NUMBER = 5;
+    private long revision_ = 0L;
+    /**
+     * <pre>
+     * Raft applied index at the time this event was produced.
+     * </pre>
+     *
+     * <code>uint64 revision = 5;</code>
+     * @return The revision.
+     */
+    @java.lang.Override
+    public long getRevision() {
+      return revision_;
+    }
+
     private byte memoizedIsInitialized = -1;
     @java.lang.Override
     public final boolean isInitialized() {
@@ -10333,6 +10433,9 @@ public final class ClientApi {
       if (error_ != d_engine.error.Error.ErrorCode.SUCCESS.getNumber()) {
         output.writeEnum(4, error_);
       }
+      if (revision_ != 0L) {
+        output.writeUInt64(5, revision_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -10357,6 +10460,10 @@ public final class ClientApi {
       if (error_ != d_engine.error.Error.ErrorCode.SUCCESS.getNumber()) {
         size += com.google.protobuf.CodedOutputStream
           .computeEnumSize(4, error_);
+      }
+      if (revision_ != 0L) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt64Size(5, revision_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSize = size;
@@ -10686,6 +10793,11 @@ public final class ClientApi {
                 bitField0_ |= 0x00000008;
                 break;
               } // case 32
+              case 40: {
+                revision_ = input.readUInt64();
+                bitField0_ |= 0x00000010;
+                break;
+              } // case 40 (field 5, wire type 0)
               default: {
                 if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                   done = true; // was an endgroup tag
@@ -10933,6 +11045,32 @@ public final class ClientApi {
       public Builder clearError() {
         bitField0_ = (bitField0_ & ~0x00000008);
         error_ = 0;
+        onChanged();
+        return this;
+      }
+      private long revision_ = 0L;
+      /**
+       * <code>uint64 revision = 5;</code>
+       * @return The revision.
+       */
+      @java.lang.Override
+      public long getRevision() {
+        return revision_;
+      }
+      /**
+       * <code>uint64 revision = 5;</code>
+       * @param value The revision to set.
+       * @return This builder for chaining.
+       */
+      public Builder setRevision(long value) {
+        revision_ = value;
+        bitField0_ |= 0x00000010;
+        onChanged();
+        return this;
+      }
+      public Builder clearRevision() {
+        bitField0_ = (bitField0_ & ~0x00000010);
+        revision_ = 0L;
         onChanged();
         return this;
       }

@@ -33,6 +33,7 @@ RUN apt-get update && \
     net-tools \
     lsof \
     gnuplot \
+    graphviz \
     vim && \
     curl -L https://raw.githubusercontent.com/technomancy/leiningen/stable/bin/lein > /usr/local/bin/lein && \
     chmod +x /usr/local/bin/lein && \
