@@ -131,6 +131,17 @@ public final class Error {
     /**
      * <pre>
      * ======================
+     * Watch layer error (5000-5999)
+     * ======================
+     * per-watcher channel full; watcher forcibly canceled, client must re-sync
+     * </pre>
+     *
+     * <code>WATCH_BUFFER_OVERFLOW = 5001;</code>
+     */
+    WATCH_BUFFER_OVERFLOW(5001),
+    /**
+     * <pre>
+     * ======================
      * Unclassified error
      * ======================
      * </pre>
@@ -256,6 +267,17 @@ public final class Error {
     /**
      * <pre>
      * ======================
+     * Watch layer error (5000-5999)
+     * ======================
+     * per-watcher channel full; watcher forcibly canceled, client must re-sync
+     * </pre>
+     *
+     * <code>WATCH_BUFFER_OVERFLOW = 5001;</code>
+     */
+    public static final int WATCH_BUFFER_OVERFLOW_VALUE = 5001;
+    /**
+     * <pre>
+     * ======================
      * Unclassified error
      * ======================
      * </pre>
@@ -313,6 +335,7 @@ public final class Error {
         case 4006: return PROPOSE_FAILED;
         case 4007: return TERM_OUTDATED;
         case 4008: return RETRY_REQUIRED;
+        case 5001: return WATCH_BUFFER_OVERFLOW;
         case 8888: return GENERAL;
         case 9999: return UNCATEGORIZED;
         default: return null;
@@ -1547,7 +1570,7 @@ public final class Error {
       "\001\001\022\026\n\tleader_id\030\002 \001(\tH\001\210\001\001\022\033\n\016leader_add" +
       "ress\030\003 \001(\tH\002\210\001\001\022\032\n\rdebug_message\030\017 \001(\tH\003" +
       "\210\001\001B\021\n\017_retry_after_msB\014\n\n_leader_idB\021\n\017" +
-      "_leader_addressB\020\n\016_debug_message*\326\003\n\tEr" +
+      "_leader_addressB\020\n\016_debug_message*\362\003\n\tEr" +
       "rorCode\022\013\n\007SUCCESS\020\000\022\027\n\022CONNECTION_TIMEO" +
       "UT\020\351\007\022\024\n\017INVALID_ADDRESS\020\352\007\022\023\n\016LEADER_CH" +
       "ANGED\020\353\007\022\017\n\nJOIN_ERROR\020\354\007\022\025\n\020INVALID_RES" +
@@ -1558,9 +1581,10 @@ public final class Error {
       "\037\022\024\n\017STALE_OPERATION\020\242\037\022\024\n\017INVALID_REQUE" +
       "ST\020\243\037\022\021\n\014RATE_LIMITED\020\244\037\022\030\n\023CLUSTER_UNAV" +
       "AILABLE\020\245\037\022\023\n\016PROPOSE_FAILED\020\246\037\022\022\n\rTERM_" +
-      "OUTDATED\020\247\037\022\023\n\016RETRY_REQUIRED\020\250\037\022\014\n\007GENE" +
-      "RAL\020\270E\022\022\n\rUNCATEGORIZED\020\217NB+Z)github.com" +
-      "/deventlab/d-engine/proto/errorb\006proto3"
+      "OUTDATED\020\247\037\022\023\n\016RETRY_REQUIRED\020\250\037\022\032\n\025WATC" +
+      "H_BUFFER_OVERFLOW\020\211\'\022\014\n\007GENERAL\020\270E\022\022\n\rUN" +
+      "CATEGORIZED\020\217NB+Z)github.com/deventlab/d" +
+      "-engine/proto/errorb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,

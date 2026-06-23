@@ -23,7 +23,7 @@
 (defn- collect-events
   "Opens a Watch stream on ch for watch-key. Drains PUT events until the
   watch-window-ms deadline fires (DEADLINE_EXCEEDED), then returns a vector
-  of decoded long values. Returns [] on any other stream error."
+  of revision numbers (Raft log indices). Returns [] on any other stream error."
   [ch]
   (try
     (let [req  (-> (ClientApi$WatchRequest/newBuilder)
@@ -39,8 +39,7 @@
                 (if (.hasNext iter)
                   (let [resp (.next iter)]
                     (if (= (.getEventType resp) ClientApi$WatchEventType/WATCH_EVENT_TYPE_PUT)
-                      (let [v (grpc/decode-u64 (.getValue resp))]
-                        [true (if v (conj events v) events)])
+                      [true (conj events (.getRevision resp))]
                       [true events]))
                   [false events])
                 (catch StatusRuntimeException e
@@ -88,11 +87,9 @@
   {:type :invoke :f :watch :value nil})
 
 (defn checker []
-  ; Verifies that within each individual Watch stream window, events arrive in
-  ; strictly increasing order. Cross-window ordering is not checked: the server
-  ; re-sends the current key value on each new subscription (a replay from its
-  ; internal buffer), so the same value legitimately appears at the start of
-  ; consecutive windows.
+  ; Verifies that within each individual Watch stream window, revisions arrive in
+  ; strictly increasing order. Revision = Raft log index, the true commit ordering
+  ; ground truth. Cross-window ordering is not checked.
   (reify checker/Checker
     (check [_ test history opts]
       (let [written-count (->> history
@@ -103,10 +100,10 @@
                                (group-by :process))
             bad-order     (for [[proc ops] watch-ops
                                 op         ops
-                                :let       [events (->> (:value op) (remove nil?) vec)]
-                                [a b]      (partition 2 1 events)
+                                :let       [revisions (->> (:value op) (remove nil?) vec)]
+                                [a b]      (partition 2 1 revisions)
                                 :when      (>= a b)]
-                            {:process proc :prev a :next b})]
+                            {:process proc :prev-revision a :next-revision b})]
         (cond-> {:valid?        (empty? bad-order)
                  :written-count written-count}
           (seq bad-order) (assoc :ordering-errors (vec (take 10 bad-order))))))))
