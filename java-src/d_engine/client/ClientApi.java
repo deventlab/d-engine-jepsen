@@ -215,12 +215,21 @@ public final class ClientApi {
     /**
      * <pre>
      * Watcher forcibly canceled by the server (e.g. buffer overflow).
-     * Client should re-sync via scan_prefix and re-register the watch.
+     * Client should re-sync via Read API and re-register the watch.
      * </pre>
      *
      * <code>WATCH_EVENT_TYPE_CANCELED = 2;</code>
      */
     WATCH_EVENT_TYPE_CANCELED(2),
+    /**
+     * <pre>
+     * Periodic heartbeat with no data change.
+     * Carries current revision so clients can confirm the stream is alive.
+     * </pre>
+     *
+     * <code>WATCH_EVENT_TYPE_PROGRESS = 3;</code>
+     */
+    WATCH_EVENT_TYPE_PROGRESS(3),
     UNRECOGNIZED(-1),
     ;
 
@@ -241,9 +250,23 @@ public final class ClientApi {
      */
     public static final int WATCH_EVENT_TYPE_DELETE_VALUE = 1;
     /**
+     * <pre>
+     * Watcher forcibly canceled by the server (e.g. buffer overflow).
+     * Client should re-sync via Read API and re-register the watch.
+     * </pre>
+     *
      * <code>WATCH_EVENT_TYPE_CANCELED = 2;</code>
      */
     public static final int WATCH_EVENT_TYPE_CANCELED_VALUE = 2;
+    /**
+     * <pre>
+     * Periodic heartbeat with no data change.
+     * Carries current revision so clients can confirm the stream is alive.
+     * </pre>
+     *
+     * <code>WATCH_EVENT_TYPE_PROGRESS = 3;</code>
+     */
+    public static final int WATCH_EVENT_TYPE_PROGRESS_VALUE = 3;
 
 
     public final int getNumber() {
@@ -273,6 +296,7 @@ public final class ClientApi {
         case 0: return WATCH_EVENT_TYPE_PUT;
         case 1: return WATCH_EVENT_TYPE_DELETE;
         case 2: return WATCH_EVENT_TYPE_CANCELED;
+        case 3: return WATCH_EVENT_TYPE_PROGRESS;
         default: return null;
       }
     }
@@ -8067,6 +8091,2145 @@ public final class ClientApi {
 
   }
 
+  public interface KvEntryOrBuilder extends
+      // @@protoc_insertion_point(interface_extends:d_engine.client.KvEntry)
+      com.google.protobuf.MessageOrBuilder {
+
+    /**
+     * <code>bytes key = 1;</code>
+     * @return The key.
+     */
+    com.google.protobuf.ByteString getKey();
+
+    /**
+     * <code>bytes value = 2;</code>
+     * @return The value.
+     */
+    com.google.protobuf.ByteString getValue();
+  }
+  /**
+   * <pre>
+   * A single key-value pair returned by a prefix scan.
+   * </pre>
+   *
+   * Protobuf type {@code d_engine.client.KvEntry}
+   */
+  public static final class KvEntry extends
+      com.google.protobuf.GeneratedMessageV3 implements
+      // @@protoc_insertion_point(message_implements:d_engine.client.KvEntry)
+      KvEntryOrBuilder {
+  private static final long serialVersionUID = 0L;
+    // Use KvEntry.newBuilder() to construct.
+    private KvEntry(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+      super(builder);
+    }
+    private KvEntry() {
+      key_ = com.google.protobuf.ByteString.EMPTY;
+      value_ = com.google.protobuf.ByteString.EMPTY;
+    }
+
+    @java.lang.Override
+    @SuppressWarnings({"unused"})
+    protected java.lang.Object newInstance(
+        UnusedPrivateParameter unused) {
+      return new KvEntry();
+    }
+
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_KvEntry_descriptor;
+    }
+
+    @java.lang.Override
+    protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_KvEntry_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              d_engine.client.ClientApi.KvEntry.class, d_engine.client.ClientApi.KvEntry.Builder.class);
+    }
+
+    public static final int KEY_FIELD_NUMBER = 1;
+    private com.google.protobuf.ByteString key_ = com.google.protobuf.ByteString.EMPTY;
+    /**
+     * <code>bytes key = 1;</code>
+     * @return The key.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString getKey() {
+      return key_;
+    }
+
+    public static final int VALUE_FIELD_NUMBER = 2;
+    private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
+    /**
+     * <code>bytes value = 2;</code>
+     * @return The value.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString getValue() {
+      return value_;
+    }
+
+    private byte memoizedIsInitialized = -1;
+    @java.lang.Override
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized == 1) return true;
+      if (isInitialized == 0) return false;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    @java.lang.Override
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      if (!key_.isEmpty()) {
+        output.writeBytes(1, key_);
+      }
+      if (!value_.isEmpty()) {
+        output.writeBytes(2, value_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    @java.lang.Override
+    public int getSerializedSize() {
+      int size = memoizedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      if (!key_.isEmpty()) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(1, key_);
+      }
+      if (!value_.isEmpty()) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(2, value_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSize = size;
+      return size;
+    }
+
+    @java.lang.Override
+    public boolean equals(final java.lang.Object obj) {
+      if (obj == this) {
+       return true;
+      }
+      if (!(obj instanceof d_engine.client.ClientApi.KvEntry)) {
+        return super.equals(obj);
+      }
+      d_engine.client.ClientApi.KvEntry other = (d_engine.client.ClientApi.KvEntry) obj;
+
+      if (!getKey()
+          .equals(other.getKey())) return false;
+      if (!getValue()
+          .equals(other.getValue())) return false;
+      if (!getUnknownFields().equals(other.getUnknownFields())) return false;
+      return true;
+    }
+
+    @java.lang.Override
+    public int hashCode() {
+      if (memoizedHashCode != 0) {
+        return memoizedHashCode;
+      }
+      int hash = 41;
+      hash = (19 * hash) + getDescriptor().hashCode();
+      hash = (37 * hash) + KEY_FIELD_NUMBER;
+      hash = (53 * hash) + getKey().hashCode();
+      hash = (37 * hash) + VALUE_FIELD_NUMBER;
+      hash = (53 * hash) + getValue().hashCode();
+      hash = (29 * hash) + getUnknownFields().hashCode();
+      memoizedHashCode = hash;
+      return hash;
+    }
+
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        java.nio.ByteBuffer data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        java.nio.ByteBuffer data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    public static d_engine.client.ClientApi.KvEntry parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input);
+    }
+
+    public static d_engine.client.ClientApi.KvEntry parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.KvEntry parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    @java.lang.Override
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder() {
+      return DEFAULT_INSTANCE.toBuilder();
+    }
+    public static Builder newBuilder(d_engine.client.ClientApi.KvEntry prototype) {
+      return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
+    }
+    @java.lang.Override
+    public Builder toBuilder() {
+      return this == DEFAULT_INSTANCE
+          ? new Builder() : new Builder().mergeFrom(this);
+    }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * <pre>
+     * A single key-value pair returned by a prefix scan.
+     * </pre>
+     *
+     * Protobuf type {@code d_engine.client.KvEntry}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
+        // @@protoc_insertion_point(builder_implements:d_engine.client.KvEntry)
+        d_engine.client.ClientApi.KvEntryOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_KvEntry_descriptor;
+      }
+
+      @java.lang.Override
+      protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_KvEntry_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                d_engine.client.ClientApi.KvEntry.class, d_engine.client.ClientApi.KvEntry.Builder.class);
+      }
+
+      // Construct using d_engine.client.ClientApi.KvEntry.newBuilder()
+      private Builder() {
+
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+        super(parent);
+
+      }
+      @java.lang.Override
+      public Builder clear() {
+        super.clear();
+        bitField0_ = 0;
+        key_ = com.google.protobuf.ByteString.EMPTY;
+        value_ = com.google.protobuf.ByteString.EMPTY;
+        return this;
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_KvEntry_descriptor;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.KvEntry getDefaultInstanceForType() {
+        return d_engine.client.ClientApi.KvEntry.getDefaultInstance();
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.KvEntry build() {
+        d_engine.client.ClientApi.KvEntry result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.KvEntry buildPartial() {
+        d_engine.client.ClientApi.KvEntry result = new d_engine.client.ClientApi.KvEntry(this);
+        if (bitField0_ != 0) { buildPartial0(result); }
+        onBuilt();
+        return result;
+      }
+
+      private void buildPartial0(d_engine.client.ClientApi.KvEntry result) {
+        int from_bitField0_ = bitField0_;
+        if (((from_bitField0_ & 0x00000001) != 0)) {
+          result.key_ = key_;
+        }
+        if (((from_bitField0_ & 0x00000002) != 0)) {
+          result.value_ = value_;
+        }
+      }
+
+      @java.lang.Override
+      public Builder clone() {
+        return super.clone();
+      }
+      @java.lang.Override
+      public Builder setField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.setField(field, value);
+      }
+      @java.lang.Override
+      public Builder clearField(
+          com.google.protobuf.Descriptors.FieldDescriptor field) {
+        return super.clearField(field);
+      }
+      @java.lang.Override
+      public Builder clearOneof(
+          com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+        return super.clearOneof(oneof);
+      }
+      @java.lang.Override
+      public Builder setRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          int index, java.lang.Object value) {
+        return super.setRepeatedField(field, index, value);
+      }
+      @java.lang.Override
+      public Builder addRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.addRepeatedField(field, value);
+      }
+      @java.lang.Override
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof d_engine.client.ClientApi.KvEntry) {
+          return mergeFrom((d_engine.client.ClientApi.KvEntry)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(d_engine.client.ClientApi.KvEntry other) {
+        if (other == d_engine.client.ClientApi.KvEntry.getDefaultInstance()) return this;
+        if (other.getKey() != com.google.protobuf.ByteString.EMPTY) {
+          setKey(other.getKey());
+        }
+        if (other.getValue() != com.google.protobuf.ByteString.EMPTY) {
+          setValue(other.getValue());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        onChanged();
+        return this;
+      }
+
+      @java.lang.Override
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      @java.lang.Override
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        if (extensionRegistry == null) {
+          throw new java.lang.NullPointerException();
+        }
+        try {
+          boolean done = false;
+          while (!done) {
+            int tag = input.readTag();
+            switch (tag) {
+              case 0:
+                done = true;
+                break;
+              case 10: {
+                key_ = input.readBytes();
+                bitField0_ |= 0x00000001;
+                break;
+              } // case 10
+              case 18: {
+                value_ = input.readBytes();
+                bitField0_ |= 0x00000002;
+                break;
+              } // case 18
+              default: {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+            } // switch (tag)
+          } // while (!done)
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.unwrapIOException();
+        } finally {
+          onChanged();
+        } // finally
+        return this;
+      }
+      private int bitField0_;
+
+      private com.google.protobuf.ByteString key_ = com.google.protobuf.ByteString.EMPTY;
+      /**
+       * <code>bytes key = 1;</code>
+       * @return The key.
+       */
+      @java.lang.Override
+      public com.google.protobuf.ByteString getKey() {
+        return key_;
+      }
+      /**
+       * <code>bytes key = 1;</code>
+       * @param value The key to set.
+       * @return This builder for chaining.
+       */
+      public Builder setKey(com.google.protobuf.ByteString value) {
+        if (value == null) { throw new NullPointerException(); }
+        key_ = value;
+        bitField0_ |= 0x00000001;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>bytes key = 1;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearKey() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        key_ = getDefaultInstance().getKey();
+        onChanged();
+        return this;
+      }
+
+      private com.google.protobuf.ByteString value_ = com.google.protobuf.ByteString.EMPTY;
+      /**
+       * <code>bytes value = 2;</code>
+       * @return The value.
+       */
+      @java.lang.Override
+      public com.google.protobuf.ByteString getValue() {
+        return value_;
+      }
+      /**
+       * <code>bytes value = 2;</code>
+       * @param value The value to set.
+       * @return This builder for chaining.
+       */
+      public Builder setValue(com.google.protobuf.ByteString value) {
+        if (value == null) { throw new NullPointerException(); }
+        value_ = value;
+        bitField0_ |= 0x00000002;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>bytes value = 2;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearValue() {
+        bitField0_ = (bitField0_ & ~0x00000002);
+        value_ = getDefaultInstance().getValue();
+        onChanged();
+        return this;
+      }
+      @java.lang.Override
+      public final Builder setUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.setUnknownFields(unknownFields);
+      }
+
+      @java.lang.Override
+      public final Builder mergeUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.mergeUnknownFields(unknownFields);
+      }
+
+
+      // @@protoc_insertion_point(builder_scope:d_engine.client.KvEntry)
+    }
+
+    // @@protoc_insertion_point(class_scope:d_engine.client.KvEntry)
+    private static final d_engine.client.ClientApi.KvEntry DEFAULT_INSTANCE;
+    static {
+      DEFAULT_INSTANCE = new d_engine.client.ClientApi.KvEntry();
+    }
+
+    public static d_engine.client.ClientApi.KvEntry getDefaultInstance() {
+      return DEFAULT_INSTANCE;
+    }
+
+    private static final com.google.protobuf.Parser<KvEntry>
+        PARSER = new com.google.protobuf.AbstractParser<KvEntry>() {
+      @java.lang.Override
+      public KvEntry parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        Builder builder = newBuilder();
+        try {
+          builder.mergeFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.setUnfinishedMessage(builder.buildPartial());
+        } catch (com.google.protobuf.UninitializedMessageException e) {
+          throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+        } catch (java.io.IOException e) {
+          throw new com.google.protobuf.InvalidProtocolBufferException(e)
+              .setUnfinishedMessage(builder.buildPartial());
+        }
+        return builder.buildPartial();
+      }
+    };
+
+    public static com.google.protobuf.Parser<KvEntry> parser() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<KvEntry> getParserForType() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public d_engine.client.ClientApi.KvEntry getDefaultInstanceForType() {
+      return DEFAULT_INSTANCE;
+    }
+
+  }
+
+  public interface ScanRequestOrBuilder extends
+      // @@protoc_insertion_point(interface_extends:d_engine.client.ScanRequest)
+      com.google.protobuf.MessageOrBuilder {
+
+    /**
+     * <code>uint32 client_id = 1;</code>
+     * @return The clientId.
+     */
+    int getClientId();
+
+    /**
+     * <pre>
+     * Prefix to scan. Must start with '/'. e.g. b"/services/".
+     * </pre>
+     *
+     * <code>bytes prefix = 2;</code>
+     * @return The prefix.
+     */
+    com.google.protobuf.ByteString getPrefix();
+  }
+  /**
+   * <pre>
+   * Request to scan all keys under a namespace prefix.
+   * Scan is served from the leader's state machine at last_applied.
+   * consistency_policy is not supported; tracked in #381.
+   * </pre>
+   *
+   * Protobuf type {@code d_engine.client.ScanRequest}
+   */
+  public static final class ScanRequest extends
+      com.google.protobuf.GeneratedMessageV3 implements
+      // @@protoc_insertion_point(message_implements:d_engine.client.ScanRequest)
+      ScanRequestOrBuilder {
+  private static final long serialVersionUID = 0L;
+    // Use ScanRequest.newBuilder() to construct.
+    private ScanRequest(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+      super(builder);
+    }
+    private ScanRequest() {
+      prefix_ = com.google.protobuf.ByteString.EMPTY;
+    }
+
+    @java.lang.Override
+    @SuppressWarnings({"unused"})
+    protected java.lang.Object newInstance(
+        UnusedPrivateParameter unused) {
+      return new ScanRequest();
+    }
+
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_ScanRequest_descriptor;
+    }
+
+    @java.lang.Override
+    protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_ScanRequest_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              d_engine.client.ClientApi.ScanRequest.class, d_engine.client.ClientApi.ScanRequest.Builder.class);
+    }
+
+    public static final int CLIENT_ID_FIELD_NUMBER = 1;
+    private int clientId_ = 0;
+    /**
+     * <code>uint32 client_id = 1;</code>
+     * @return The clientId.
+     */
+    @java.lang.Override
+    public int getClientId() {
+      return clientId_;
+    }
+
+    public static final int PREFIX_FIELD_NUMBER = 2;
+    private com.google.protobuf.ByteString prefix_ = com.google.protobuf.ByteString.EMPTY;
+    /**
+     * <pre>
+     * Prefix to scan. Must start with '/'. e.g. b"/services/".
+     * </pre>
+     *
+     * <code>bytes prefix = 2;</code>
+     * @return The prefix.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString getPrefix() {
+      return prefix_;
+    }
+
+    private byte memoizedIsInitialized = -1;
+    @java.lang.Override
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized == 1) return true;
+      if (isInitialized == 0) return false;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    @java.lang.Override
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      if (clientId_ != 0) {
+        output.writeUInt32(1, clientId_);
+      }
+      if (!prefix_.isEmpty()) {
+        output.writeBytes(2, prefix_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    @java.lang.Override
+    public int getSerializedSize() {
+      int size = memoizedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      if (clientId_ != 0) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt32Size(1, clientId_);
+      }
+      if (!prefix_.isEmpty()) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(2, prefix_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSize = size;
+      return size;
+    }
+
+    @java.lang.Override
+    public boolean equals(final java.lang.Object obj) {
+      if (obj == this) {
+       return true;
+      }
+      if (!(obj instanceof d_engine.client.ClientApi.ScanRequest)) {
+        return super.equals(obj);
+      }
+      d_engine.client.ClientApi.ScanRequest other = (d_engine.client.ClientApi.ScanRequest) obj;
+
+      if (getClientId()
+          != other.getClientId()) return false;
+      if (!getPrefix()
+          .equals(other.getPrefix())) return false;
+      if (!getUnknownFields().equals(other.getUnknownFields())) return false;
+      return true;
+    }
+
+    @java.lang.Override
+    public int hashCode() {
+      if (memoizedHashCode != 0) {
+        return memoizedHashCode;
+      }
+      int hash = 41;
+      hash = (19 * hash) + getDescriptor().hashCode();
+      hash = (37 * hash) + CLIENT_ID_FIELD_NUMBER;
+      hash = (53 * hash) + getClientId();
+      hash = (37 * hash) + PREFIX_FIELD_NUMBER;
+      hash = (53 * hash) + getPrefix().hashCode();
+      hash = (29 * hash) + getUnknownFields().hashCode();
+      memoizedHashCode = hash;
+      return hash;
+    }
+
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        java.nio.ByteBuffer data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        java.nio.ByteBuffer data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    public static d_engine.client.ClientApi.ScanRequest parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input);
+    }
+
+    public static d_engine.client.ClientApi.ScanRequest parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.ScanRequest parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    @java.lang.Override
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder() {
+      return DEFAULT_INSTANCE.toBuilder();
+    }
+    public static Builder newBuilder(d_engine.client.ClientApi.ScanRequest prototype) {
+      return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
+    }
+    @java.lang.Override
+    public Builder toBuilder() {
+      return this == DEFAULT_INSTANCE
+          ? new Builder() : new Builder().mergeFrom(this);
+    }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * <pre>
+     * Request to scan all keys under a namespace prefix.
+     * Scan is served from the leader's state machine at last_applied.
+     * consistency_policy is not supported; tracked in #381.
+     * </pre>
+     *
+     * Protobuf type {@code d_engine.client.ScanRequest}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
+        // @@protoc_insertion_point(builder_implements:d_engine.client.ScanRequest)
+        d_engine.client.ClientApi.ScanRequestOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanRequest_descriptor;
+      }
+
+      @java.lang.Override
+      protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanRequest_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                d_engine.client.ClientApi.ScanRequest.class, d_engine.client.ClientApi.ScanRequest.Builder.class);
+      }
+
+      // Construct using d_engine.client.ClientApi.ScanRequest.newBuilder()
+      private Builder() {
+
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+        super(parent);
+
+      }
+      @java.lang.Override
+      public Builder clear() {
+        super.clear();
+        bitField0_ = 0;
+        clientId_ = 0;
+        prefix_ = com.google.protobuf.ByteString.EMPTY;
+        return this;
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanRequest_descriptor;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanRequest getDefaultInstanceForType() {
+        return d_engine.client.ClientApi.ScanRequest.getDefaultInstance();
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanRequest build() {
+        d_engine.client.ClientApi.ScanRequest result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanRequest buildPartial() {
+        d_engine.client.ClientApi.ScanRequest result = new d_engine.client.ClientApi.ScanRequest(this);
+        if (bitField0_ != 0) { buildPartial0(result); }
+        onBuilt();
+        return result;
+      }
+
+      private void buildPartial0(d_engine.client.ClientApi.ScanRequest result) {
+        int from_bitField0_ = bitField0_;
+        if (((from_bitField0_ & 0x00000001) != 0)) {
+          result.clientId_ = clientId_;
+        }
+        if (((from_bitField0_ & 0x00000002) != 0)) {
+          result.prefix_ = prefix_;
+        }
+      }
+
+      @java.lang.Override
+      public Builder clone() {
+        return super.clone();
+      }
+      @java.lang.Override
+      public Builder setField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.setField(field, value);
+      }
+      @java.lang.Override
+      public Builder clearField(
+          com.google.protobuf.Descriptors.FieldDescriptor field) {
+        return super.clearField(field);
+      }
+      @java.lang.Override
+      public Builder clearOneof(
+          com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+        return super.clearOneof(oneof);
+      }
+      @java.lang.Override
+      public Builder setRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          int index, java.lang.Object value) {
+        return super.setRepeatedField(field, index, value);
+      }
+      @java.lang.Override
+      public Builder addRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.addRepeatedField(field, value);
+      }
+      @java.lang.Override
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof d_engine.client.ClientApi.ScanRequest) {
+          return mergeFrom((d_engine.client.ClientApi.ScanRequest)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(d_engine.client.ClientApi.ScanRequest other) {
+        if (other == d_engine.client.ClientApi.ScanRequest.getDefaultInstance()) return this;
+        if (other.getClientId() != 0) {
+          setClientId(other.getClientId());
+        }
+        if (other.getPrefix() != com.google.protobuf.ByteString.EMPTY) {
+          setPrefix(other.getPrefix());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        onChanged();
+        return this;
+      }
+
+      @java.lang.Override
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      @java.lang.Override
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        if (extensionRegistry == null) {
+          throw new java.lang.NullPointerException();
+        }
+        try {
+          boolean done = false;
+          while (!done) {
+            int tag = input.readTag();
+            switch (tag) {
+              case 0:
+                done = true;
+                break;
+              case 8: {
+                clientId_ = input.readUInt32();
+                bitField0_ |= 0x00000001;
+                break;
+              } // case 8
+              case 18: {
+                prefix_ = input.readBytes();
+                bitField0_ |= 0x00000002;
+                break;
+              } // case 18
+              default: {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+            } // switch (tag)
+          } // while (!done)
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.unwrapIOException();
+        } finally {
+          onChanged();
+        } // finally
+        return this;
+      }
+      private int bitField0_;
+
+      private int clientId_ ;
+      /**
+       * <code>uint32 client_id = 1;</code>
+       * @return The clientId.
+       */
+      @java.lang.Override
+      public int getClientId() {
+        return clientId_;
+      }
+      /**
+       * <code>uint32 client_id = 1;</code>
+       * @param value The clientId to set.
+       * @return This builder for chaining.
+       */
+      public Builder setClientId(int value) {
+
+        clientId_ = value;
+        bitField0_ |= 0x00000001;
+        onChanged();
+        return this;
+      }
+      /**
+       * <code>uint32 client_id = 1;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearClientId() {
+        bitField0_ = (bitField0_ & ~0x00000001);
+        clientId_ = 0;
+        onChanged();
+        return this;
+      }
+
+      private com.google.protobuf.ByteString prefix_ = com.google.protobuf.ByteString.EMPTY;
+      /**
+       * <pre>
+       * Prefix to scan. Must start with '/'. e.g. b"/services/".
+       * </pre>
+       *
+       * <code>bytes prefix = 2;</code>
+       * @return The prefix.
+       */
+      @java.lang.Override
+      public com.google.protobuf.ByteString getPrefix() {
+        return prefix_;
+      }
+      /**
+       * <pre>
+       * Prefix to scan. Must start with '/'. e.g. b"/services/".
+       * </pre>
+       *
+       * <code>bytes prefix = 2;</code>
+       * @param value The prefix to set.
+       * @return This builder for chaining.
+       */
+      public Builder setPrefix(com.google.protobuf.ByteString value) {
+        if (value == null) { throw new NullPointerException(); }
+        prefix_ = value;
+        bitField0_ |= 0x00000002;
+        onChanged();
+        return this;
+      }
+      /**
+       * <pre>
+       * Prefix to scan. Must start with '/'. e.g. b"/services/".
+       * </pre>
+       *
+       * <code>bytes prefix = 2;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearPrefix() {
+        bitField0_ = (bitField0_ & ~0x00000002);
+        prefix_ = getDefaultInstance().getPrefix();
+        onChanged();
+        return this;
+      }
+      @java.lang.Override
+      public final Builder setUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.setUnknownFields(unknownFields);
+      }
+
+      @java.lang.Override
+      public final Builder mergeUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.mergeUnknownFields(unknownFields);
+      }
+
+
+      // @@protoc_insertion_point(builder_scope:d_engine.client.ScanRequest)
+    }
+
+    // @@protoc_insertion_point(class_scope:d_engine.client.ScanRequest)
+    private static final d_engine.client.ClientApi.ScanRequest DEFAULT_INSTANCE;
+    static {
+      DEFAULT_INSTANCE = new d_engine.client.ClientApi.ScanRequest();
+    }
+
+    public static d_engine.client.ClientApi.ScanRequest getDefaultInstance() {
+      return DEFAULT_INSTANCE;
+    }
+
+    private static final com.google.protobuf.Parser<ScanRequest>
+        PARSER = new com.google.protobuf.AbstractParser<ScanRequest>() {
+      @java.lang.Override
+      public ScanRequest parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        Builder builder = newBuilder();
+        try {
+          builder.mergeFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.setUnfinishedMessage(builder.buildPartial());
+        } catch (com.google.protobuf.UninitializedMessageException e) {
+          throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+        } catch (java.io.IOException e) {
+          throw new com.google.protobuf.InvalidProtocolBufferException(e)
+              .setUnfinishedMessage(builder.buildPartial());
+        }
+        return builder.buildPartial();
+      }
+    };
+
+    public static com.google.protobuf.Parser<ScanRequest> parser() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<ScanRequest> getParserForType() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public d_engine.client.ClientApi.ScanRequest getDefaultInstanceForType() {
+      return DEFAULT_INSTANCE;
+    }
+
+  }
+
+  public interface ScanResponseOrBuilder extends
+      // @@protoc_insertion_point(interface_extends:d_engine.client.ScanResponse)
+      com.google.protobuf.MessageOrBuilder {
+
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    java.util.List<d_engine.client.ClientApi.KvEntry> 
+        getEntriesList();
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    d_engine.client.ClientApi.KvEntry getEntries(int index);
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    int getEntriesCount();
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    java.util.List<? extends d_engine.client.ClientApi.KvEntryOrBuilder> 
+        getEntriesOrBuilderList();
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    d_engine.client.ClientApi.KvEntryOrBuilder getEntriesOrBuilder(
+        int index);
+
+    /**
+     * <pre>
+     * Raft applied index at the moment of the scan.
+     * Use as the watch-event filter anchor: skip events where event.revision &lt;= revision.
+     * </pre>
+     *
+     * <code>uint64 revision = 2;</code>
+     * @return The revision.
+     */
+    long getRevision();
+  }
+  /**
+   * <pre>
+   * Response from a prefix scan.
+   * </pre>
+   *
+   * Protobuf type {@code d_engine.client.ScanResponse}
+   */
+  public static final class ScanResponse extends
+      com.google.protobuf.GeneratedMessageV3 implements
+      // @@protoc_insertion_point(message_implements:d_engine.client.ScanResponse)
+      ScanResponseOrBuilder {
+  private static final long serialVersionUID = 0L;
+    // Use ScanResponse.newBuilder() to construct.
+    private ScanResponse(com.google.protobuf.GeneratedMessageV3.Builder<?> builder) {
+      super(builder);
+    }
+    private ScanResponse() {
+      entries_ = java.util.Collections.emptyList();
+    }
+
+    @java.lang.Override
+    @SuppressWarnings({"unused"})
+    protected java.lang.Object newInstance(
+        UnusedPrivateParameter unused) {
+      return new ScanResponse();
+    }
+
+    public static final com.google.protobuf.Descriptors.Descriptor
+        getDescriptor() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_ScanResponse_descriptor;
+    }
+
+    @java.lang.Override
+    protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+        internalGetFieldAccessorTable() {
+      return d_engine.client.ClientApi.internal_static_d_engine_client_ScanResponse_fieldAccessorTable
+          .ensureFieldAccessorsInitialized(
+              d_engine.client.ClientApi.ScanResponse.class, d_engine.client.ClientApi.ScanResponse.Builder.class);
+    }
+
+    public static final int ENTRIES_FIELD_NUMBER = 1;
+    @SuppressWarnings("serial")
+    private java.util.List<d_engine.client.ClientApi.KvEntry> entries_;
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    @java.lang.Override
+    public java.util.List<d_engine.client.ClientApi.KvEntry> getEntriesList() {
+      return entries_;
+    }
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    @java.lang.Override
+    public java.util.List<? extends d_engine.client.ClientApi.KvEntryOrBuilder> 
+        getEntriesOrBuilderList() {
+      return entries_;
+    }
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    @java.lang.Override
+    public int getEntriesCount() {
+      return entries_.size();
+    }
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    @java.lang.Override
+    public d_engine.client.ClientApi.KvEntry getEntries(int index) {
+      return entries_.get(index);
+    }
+    /**
+     * <pre>
+     * All (key, value) pairs whose key starts with the requested prefix.
+     * </pre>
+     *
+     * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+     */
+    @java.lang.Override
+    public d_engine.client.ClientApi.KvEntryOrBuilder getEntriesOrBuilder(
+        int index) {
+      return entries_.get(index);
+    }
+
+    public static final int REVISION_FIELD_NUMBER = 2;
+    private long revision_ = 0L;
+    /**
+     * <pre>
+     * Raft applied index at the moment of the scan.
+     * Use as the watch-event filter anchor: skip events where event.revision &lt;= revision.
+     * </pre>
+     *
+     * <code>uint64 revision = 2;</code>
+     * @return The revision.
+     */
+    @java.lang.Override
+    public long getRevision() {
+      return revision_;
+    }
+
+    private byte memoizedIsInitialized = -1;
+    @java.lang.Override
+    public final boolean isInitialized() {
+      byte isInitialized = memoizedIsInitialized;
+      if (isInitialized == 1) return true;
+      if (isInitialized == 0) return false;
+
+      memoizedIsInitialized = 1;
+      return true;
+    }
+
+    @java.lang.Override
+    public void writeTo(com.google.protobuf.CodedOutputStream output)
+                        throws java.io.IOException {
+      for (int i = 0; i < entries_.size(); i++) {
+        output.writeMessage(1, entries_.get(i));
+      }
+      if (revision_ != 0L) {
+        output.writeUInt64(2, revision_);
+      }
+      getUnknownFields().writeTo(output);
+    }
+
+    @java.lang.Override
+    public int getSerializedSize() {
+      int size = memoizedSize;
+      if (size != -1) return size;
+
+      size = 0;
+      for (int i = 0; i < entries_.size(); i++) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeMessageSize(1, entries_.get(i));
+      }
+      if (revision_ != 0L) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeUInt64Size(2, revision_);
+      }
+      size += getUnknownFields().getSerializedSize();
+      memoizedSize = size;
+      return size;
+    }
+
+    @java.lang.Override
+    public boolean equals(final java.lang.Object obj) {
+      if (obj == this) {
+       return true;
+      }
+      if (!(obj instanceof d_engine.client.ClientApi.ScanResponse)) {
+        return super.equals(obj);
+      }
+      d_engine.client.ClientApi.ScanResponse other = (d_engine.client.ClientApi.ScanResponse) obj;
+
+      if (!getEntriesList()
+          .equals(other.getEntriesList())) return false;
+      if (getRevision()
+          != other.getRevision()) return false;
+      if (!getUnknownFields().equals(other.getUnknownFields())) return false;
+      return true;
+    }
+
+    @java.lang.Override
+    public int hashCode() {
+      if (memoizedHashCode != 0) {
+        return memoizedHashCode;
+      }
+      int hash = 41;
+      hash = (19 * hash) + getDescriptor().hashCode();
+      if (getEntriesCount() > 0) {
+        hash = (37 * hash) + ENTRIES_FIELD_NUMBER;
+        hash = (53 * hash) + getEntriesList().hashCode();
+      }
+      hash = (37 * hash) + REVISION_FIELD_NUMBER;
+      hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+          getRevision());
+      hash = (29 * hash) + getUnknownFields().hashCode();
+      memoizedHashCode = hash;
+      return hash;
+    }
+
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        java.nio.ByteBuffer data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        java.nio.ByteBuffer data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        com.google.protobuf.ByteString data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        com.google.protobuf.ByteString data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(byte[] data)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        byte[] data,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws com.google.protobuf.InvalidProtocolBufferException {
+      return PARSER.parseFrom(data, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    public static d_engine.client.ClientApi.ScanResponse parseDelimitedFrom(java.io.InputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input);
+    }
+
+    public static d_engine.client.ClientApi.ScanResponse parseDelimitedFrom(
+        java.io.InputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseDelimitedWithIOException(PARSER, input, extensionRegistry);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        com.google.protobuf.CodedInputStream input)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input);
+    }
+    public static d_engine.client.ClientApi.ScanResponse parseFrom(
+        com.google.protobuf.CodedInputStream input,
+        com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+        throws java.io.IOException {
+      return com.google.protobuf.GeneratedMessageV3
+          .parseWithIOException(PARSER, input, extensionRegistry);
+    }
+
+    @java.lang.Override
+    public Builder newBuilderForType() { return newBuilder(); }
+    public static Builder newBuilder() {
+      return DEFAULT_INSTANCE.toBuilder();
+    }
+    public static Builder newBuilder(d_engine.client.ClientApi.ScanResponse prototype) {
+      return DEFAULT_INSTANCE.toBuilder().mergeFrom(prototype);
+    }
+    @java.lang.Override
+    public Builder toBuilder() {
+      return this == DEFAULT_INSTANCE
+          ? new Builder() : new Builder().mergeFrom(this);
+    }
+
+    @java.lang.Override
+    protected Builder newBuilderForType(
+        com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+      Builder builder = new Builder(parent);
+      return builder;
+    }
+    /**
+     * <pre>
+     * Response from a prefix scan.
+     * </pre>
+     *
+     * Protobuf type {@code d_engine.client.ScanResponse}
+     */
+    public static final class Builder extends
+        com.google.protobuf.GeneratedMessageV3.Builder<Builder> implements
+        // @@protoc_insertion_point(builder_implements:d_engine.client.ScanResponse)
+        d_engine.client.ClientApi.ScanResponseOrBuilder {
+      public static final com.google.protobuf.Descriptors.Descriptor
+          getDescriptor() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanResponse_descriptor;
+      }
+
+      @java.lang.Override
+      protected com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+          internalGetFieldAccessorTable() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanResponse_fieldAccessorTable
+            .ensureFieldAccessorsInitialized(
+                d_engine.client.ClientApi.ScanResponse.class, d_engine.client.ClientApi.ScanResponse.Builder.class);
+      }
+
+      // Construct using d_engine.client.ClientApi.ScanResponse.newBuilder()
+      private Builder() {
+
+      }
+
+      private Builder(
+          com.google.protobuf.GeneratedMessageV3.BuilderParent parent) {
+        super(parent);
+
+      }
+      @java.lang.Override
+      public Builder clear() {
+        super.clear();
+        bitField0_ = 0;
+        if (entriesBuilder_ == null) {
+          entries_ = java.util.Collections.emptyList();
+        } else {
+          entries_ = null;
+          entriesBuilder_.clear();
+        }
+        bitField0_ = (bitField0_ & ~0x00000001);
+        revision_ = 0L;
+        return this;
+      }
+
+      @java.lang.Override
+      public com.google.protobuf.Descriptors.Descriptor
+          getDescriptorForType() {
+        return d_engine.client.ClientApi.internal_static_d_engine_client_ScanResponse_descriptor;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanResponse getDefaultInstanceForType() {
+        return d_engine.client.ClientApi.ScanResponse.getDefaultInstance();
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanResponse build() {
+        d_engine.client.ClientApi.ScanResponse result = buildPartial();
+        if (!result.isInitialized()) {
+          throw newUninitializedMessageException(result);
+        }
+        return result;
+      }
+
+      @java.lang.Override
+      public d_engine.client.ClientApi.ScanResponse buildPartial() {
+        d_engine.client.ClientApi.ScanResponse result = new d_engine.client.ClientApi.ScanResponse(this);
+        buildPartialRepeatedFields(result);
+        if (bitField0_ != 0) { buildPartial0(result); }
+        onBuilt();
+        return result;
+      }
+
+      private void buildPartialRepeatedFields(d_engine.client.ClientApi.ScanResponse result) {
+        if (entriesBuilder_ == null) {
+          if (((bitField0_ & 0x00000001) != 0)) {
+            entries_ = java.util.Collections.unmodifiableList(entries_);
+            bitField0_ = (bitField0_ & ~0x00000001);
+          }
+          result.entries_ = entries_;
+        } else {
+          result.entries_ = entriesBuilder_.build();
+        }
+      }
+
+      private void buildPartial0(d_engine.client.ClientApi.ScanResponse result) {
+        int from_bitField0_ = bitField0_;
+        if (((from_bitField0_ & 0x00000002) != 0)) {
+          result.revision_ = revision_;
+        }
+      }
+
+      @java.lang.Override
+      public Builder clone() {
+        return super.clone();
+      }
+      @java.lang.Override
+      public Builder setField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.setField(field, value);
+      }
+      @java.lang.Override
+      public Builder clearField(
+          com.google.protobuf.Descriptors.FieldDescriptor field) {
+        return super.clearField(field);
+      }
+      @java.lang.Override
+      public Builder clearOneof(
+          com.google.protobuf.Descriptors.OneofDescriptor oneof) {
+        return super.clearOneof(oneof);
+      }
+      @java.lang.Override
+      public Builder setRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          int index, java.lang.Object value) {
+        return super.setRepeatedField(field, index, value);
+      }
+      @java.lang.Override
+      public Builder addRepeatedField(
+          com.google.protobuf.Descriptors.FieldDescriptor field,
+          java.lang.Object value) {
+        return super.addRepeatedField(field, value);
+      }
+      @java.lang.Override
+      public Builder mergeFrom(com.google.protobuf.Message other) {
+        if (other instanceof d_engine.client.ClientApi.ScanResponse) {
+          return mergeFrom((d_engine.client.ClientApi.ScanResponse)other);
+        } else {
+          super.mergeFrom(other);
+          return this;
+        }
+      }
+
+      public Builder mergeFrom(d_engine.client.ClientApi.ScanResponse other) {
+        if (other == d_engine.client.ClientApi.ScanResponse.getDefaultInstance()) return this;
+        if (entriesBuilder_ == null) {
+          if (!other.entries_.isEmpty()) {
+            if (entries_.isEmpty()) {
+              entries_ = other.entries_;
+              bitField0_ = (bitField0_ & ~0x00000001);
+            } else {
+              ensureEntriesIsMutable();
+              entries_.addAll(other.entries_);
+            }
+            onChanged();
+          }
+        } else {
+          if (!other.entries_.isEmpty()) {
+            if (entriesBuilder_.isEmpty()) {
+              entriesBuilder_.dispose();
+              entriesBuilder_ = null;
+              entries_ = other.entries_;
+              bitField0_ = (bitField0_ & ~0x00000001);
+              entriesBuilder_ = 
+                com.google.protobuf.GeneratedMessageV3.alwaysUseFieldBuilders ?
+                   getEntriesFieldBuilder() : null;
+            } else {
+              entriesBuilder_.addAllMessages(other.entries_);
+            }
+          }
+        }
+        if (other.getRevision() != 0L) {
+          setRevision(other.getRevision());
+        }
+        this.mergeUnknownFields(other.getUnknownFields());
+        onChanged();
+        return this;
+      }
+
+      @java.lang.Override
+      public final boolean isInitialized() {
+        return true;
+      }
+
+      @java.lang.Override
+      public Builder mergeFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws java.io.IOException {
+        if (extensionRegistry == null) {
+          throw new java.lang.NullPointerException();
+        }
+        try {
+          boolean done = false;
+          while (!done) {
+            int tag = input.readTag();
+            switch (tag) {
+              case 0:
+                done = true;
+                break;
+              case 10: {
+                d_engine.client.ClientApi.KvEntry m =
+                    input.readMessage(
+                        d_engine.client.ClientApi.KvEntry.parser(),
+                        extensionRegistry);
+                if (entriesBuilder_ == null) {
+                  ensureEntriesIsMutable();
+                  entries_.add(m);
+                } else {
+                  entriesBuilder_.addMessage(m);
+                }
+                break;
+              } // case 10
+              case 16: {
+                revision_ = input.readUInt64();
+                bitField0_ |= 0x00000002;
+                break;
+              } // case 16
+              default: {
+                if (!super.parseUnknownField(input, extensionRegistry, tag)) {
+                  done = true; // was an endgroup tag
+                }
+                break;
+              } // default:
+            } // switch (tag)
+          } // while (!done)
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.unwrapIOException();
+        } finally {
+          onChanged();
+        } // finally
+        return this;
+      }
+      private int bitField0_;
+
+      private java.util.List<d_engine.client.ClientApi.KvEntry> entries_ =
+        java.util.Collections.emptyList();
+      private void ensureEntriesIsMutable() {
+        if (!((bitField0_ & 0x00000001) != 0)) {
+          entries_ = new java.util.ArrayList<d_engine.client.ClientApi.KvEntry>(entries_);
+          bitField0_ |= 0x00000001;
+         }
+      }
+
+      private com.google.protobuf.RepeatedFieldBuilderV3<
+          d_engine.client.ClientApi.KvEntry, d_engine.client.ClientApi.KvEntry.Builder, d_engine.client.ClientApi.KvEntryOrBuilder> entriesBuilder_;
+
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public java.util.List<d_engine.client.ClientApi.KvEntry> getEntriesList() {
+        if (entriesBuilder_ == null) {
+          return java.util.Collections.unmodifiableList(entries_);
+        } else {
+          return entriesBuilder_.getMessageList();
+        }
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public int getEntriesCount() {
+        if (entriesBuilder_ == null) {
+          return entries_.size();
+        } else {
+          return entriesBuilder_.getCount();
+        }
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public d_engine.client.ClientApi.KvEntry getEntries(int index) {
+        if (entriesBuilder_ == null) {
+          return entries_.get(index);
+        } else {
+          return entriesBuilder_.getMessage(index);
+        }
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder setEntries(
+          int index, d_engine.client.ClientApi.KvEntry value) {
+        if (entriesBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntriesIsMutable();
+          entries_.set(index, value);
+          onChanged();
+        } else {
+          entriesBuilder_.setMessage(index, value);
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder setEntries(
+          int index, d_engine.client.ClientApi.KvEntry.Builder builderForValue) {
+        if (entriesBuilder_ == null) {
+          ensureEntriesIsMutable();
+          entries_.set(index, builderForValue.build());
+          onChanged();
+        } else {
+          entriesBuilder_.setMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder addEntries(d_engine.client.ClientApi.KvEntry value) {
+        if (entriesBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntriesIsMutable();
+          entries_.add(value);
+          onChanged();
+        } else {
+          entriesBuilder_.addMessage(value);
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder addEntries(
+          int index, d_engine.client.ClientApi.KvEntry value) {
+        if (entriesBuilder_ == null) {
+          if (value == null) {
+            throw new NullPointerException();
+          }
+          ensureEntriesIsMutable();
+          entries_.add(index, value);
+          onChanged();
+        } else {
+          entriesBuilder_.addMessage(index, value);
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder addEntries(
+          d_engine.client.ClientApi.KvEntry.Builder builderForValue) {
+        if (entriesBuilder_ == null) {
+          ensureEntriesIsMutable();
+          entries_.add(builderForValue.build());
+          onChanged();
+        } else {
+          entriesBuilder_.addMessage(builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder addEntries(
+          int index, d_engine.client.ClientApi.KvEntry.Builder builderForValue) {
+        if (entriesBuilder_ == null) {
+          ensureEntriesIsMutable();
+          entries_.add(index, builderForValue.build());
+          onChanged();
+        } else {
+          entriesBuilder_.addMessage(index, builderForValue.build());
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder addAllEntries(
+          java.lang.Iterable<? extends d_engine.client.ClientApi.KvEntry> values) {
+        if (entriesBuilder_ == null) {
+          ensureEntriesIsMutable();
+          com.google.protobuf.AbstractMessageLite.Builder.addAll(
+              values, entries_);
+          onChanged();
+        } else {
+          entriesBuilder_.addAllMessages(values);
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder clearEntries() {
+        if (entriesBuilder_ == null) {
+          entries_ = java.util.Collections.emptyList();
+          bitField0_ = (bitField0_ & ~0x00000001);
+          onChanged();
+        } else {
+          entriesBuilder_.clear();
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public Builder removeEntries(int index) {
+        if (entriesBuilder_ == null) {
+          ensureEntriesIsMutable();
+          entries_.remove(index);
+          onChanged();
+        } else {
+          entriesBuilder_.remove(index);
+        }
+        return this;
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public d_engine.client.ClientApi.KvEntry.Builder getEntriesBuilder(
+          int index) {
+        return getEntriesFieldBuilder().getBuilder(index);
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public d_engine.client.ClientApi.KvEntryOrBuilder getEntriesOrBuilder(
+          int index) {
+        if (entriesBuilder_ == null) {
+          return entries_.get(index);  } else {
+          return entriesBuilder_.getMessageOrBuilder(index);
+        }
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public java.util.List<? extends d_engine.client.ClientApi.KvEntryOrBuilder> 
+           getEntriesOrBuilderList() {
+        if (entriesBuilder_ != null) {
+          return entriesBuilder_.getMessageOrBuilderList();
+        } else {
+          return java.util.Collections.unmodifiableList(entries_);
+        }
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public d_engine.client.ClientApi.KvEntry.Builder addEntriesBuilder() {
+        return getEntriesFieldBuilder().addBuilder(
+            d_engine.client.ClientApi.KvEntry.getDefaultInstance());
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public d_engine.client.ClientApi.KvEntry.Builder addEntriesBuilder(
+          int index) {
+        return getEntriesFieldBuilder().addBuilder(
+            index, d_engine.client.ClientApi.KvEntry.getDefaultInstance());
+      }
+      /**
+       * <pre>
+       * All (key, value) pairs whose key starts with the requested prefix.
+       * </pre>
+       *
+       * <code>repeated .d_engine.client.KvEntry entries = 1;</code>
+       */
+      public java.util.List<d_engine.client.ClientApi.KvEntry.Builder> 
+           getEntriesBuilderList() {
+        return getEntriesFieldBuilder().getBuilderList();
+      }
+      private com.google.protobuf.RepeatedFieldBuilderV3<
+          d_engine.client.ClientApi.KvEntry, d_engine.client.ClientApi.KvEntry.Builder, d_engine.client.ClientApi.KvEntryOrBuilder> 
+          getEntriesFieldBuilder() {
+        if (entriesBuilder_ == null) {
+          entriesBuilder_ = new com.google.protobuf.RepeatedFieldBuilderV3<
+              d_engine.client.ClientApi.KvEntry, d_engine.client.ClientApi.KvEntry.Builder, d_engine.client.ClientApi.KvEntryOrBuilder>(
+                  entries_,
+                  ((bitField0_ & 0x00000001) != 0),
+                  getParentForChildren(),
+                  isClean());
+          entries_ = null;
+        }
+        return entriesBuilder_;
+      }
+
+      private long revision_ ;
+      /**
+       * <pre>
+       * Raft applied index at the moment of the scan.
+       * Use as the watch-event filter anchor: skip events where event.revision &lt;= revision.
+       * </pre>
+       *
+       * <code>uint64 revision = 2;</code>
+       * @return The revision.
+       */
+      @java.lang.Override
+      public long getRevision() {
+        return revision_;
+      }
+      /**
+       * <pre>
+       * Raft applied index at the moment of the scan.
+       * Use as the watch-event filter anchor: skip events where event.revision &lt;= revision.
+       * </pre>
+       *
+       * <code>uint64 revision = 2;</code>
+       * @param value The revision to set.
+       * @return This builder for chaining.
+       */
+      public Builder setRevision(long value) {
+
+        revision_ = value;
+        bitField0_ |= 0x00000002;
+        onChanged();
+        return this;
+      }
+      /**
+       * <pre>
+       * Raft applied index at the moment of the scan.
+       * Use as the watch-event filter anchor: skip events where event.revision &lt;= revision.
+       * </pre>
+       *
+       * <code>uint64 revision = 2;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearRevision() {
+        bitField0_ = (bitField0_ & ~0x00000002);
+        revision_ = 0L;
+        onChanged();
+        return this;
+      }
+      @java.lang.Override
+      public final Builder setUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.setUnknownFields(unknownFields);
+      }
+
+      @java.lang.Override
+      public final Builder mergeUnknownFields(
+          final com.google.protobuf.UnknownFieldSet unknownFields) {
+        return super.mergeUnknownFields(unknownFields);
+      }
+
+
+      // @@protoc_insertion_point(builder_scope:d_engine.client.ScanResponse)
+    }
+
+    // @@protoc_insertion_point(class_scope:d_engine.client.ScanResponse)
+    private static final d_engine.client.ClientApi.ScanResponse DEFAULT_INSTANCE;
+    static {
+      DEFAULT_INSTANCE = new d_engine.client.ClientApi.ScanResponse();
+    }
+
+    public static d_engine.client.ClientApi.ScanResponse getDefaultInstance() {
+      return DEFAULT_INSTANCE;
+    }
+
+    private static final com.google.protobuf.Parser<ScanResponse>
+        PARSER = new com.google.protobuf.AbstractParser<ScanResponse>() {
+      @java.lang.Override
+      public ScanResponse parsePartialFrom(
+          com.google.protobuf.CodedInputStream input,
+          com.google.protobuf.ExtensionRegistryLite extensionRegistry)
+          throws com.google.protobuf.InvalidProtocolBufferException {
+        Builder builder = newBuilder();
+        try {
+          builder.mergeFrom(input, extensionRegistry);
+        } catch (com.google.protobuf.InvalidProtocolBufferException e) {
+          throw e.setUnfinishedMessage(builder.buildPartial());
+        } catch (com.google.protobuf.UninitializedMessageException e) {
+          throw e.asInvalidProtocolBufferException().setUnfinishedMessage(builder.buildPartial());
+        } catch (java.io.IOException e) {
+          throw new com.google.protobuf.InvalidProtocolBufferException(e)
+              .setUnfinishedMessage(builder.buildPartial());
+        }
+        return builder.buildPartial();
+      }
+    };
+
+    public static com.google.protobuf.Parser<ScanResponse> parser() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public com.google.protobuf.Parser<ScanResponse> getParserForType() {
+      return PARSER;
+    }
+
+    @java.lang.Override
+    public d_engine.client.ClientApi.ScanResponse getDefaultInstanceForType() {
+      return DEFAULT_INSTANCE;
+    }
+
+  }
+
   public interface WatchMembershipRequestOrBuilder extends
       // @@protoc_insertion_point(interface_extends:d_engine.client.WatchMembershipRequest)
       com.google.protobuf.MessageOrBuilder {
@@ -9563,7 +11726,10 @@ public final class ClientApi {
 
     /**
      * <pre>
-     * Exact key to watch for changes
+     * Key to watch.
+     * prefix=false: exact key match.
+     * prefix=true:  prefix match — key must start with "/" and end with "/".
+     *               e.g. "/config/" watches all keys under /config/.
      * </pre>
      *
      * <code>bytes key = 2;</code>
@@ -9572,17 +11738,31 @@ public final class ClientApi {
     com.google.protobuf.ByteString getKey();
 
     /**
+     * <pre>
+     * When true, key is treated as a path prefix (must end with "/").
+     * Default false preserves backwards-compatible exact-match behaviour.
+     * </pre>
+     *
      * <code>bool prefix = 3;</code>
      * @return The prefix.
      */
     boolean getPrefix();
+
+    /**
+     * <pre>
+     * When true, each WatchResponse includes the value that existed before
+     * the mutation (prev_value). Default false; server skips the extra read
+     * when no watcher requests it.
+     * </pre>
+     *
+     * <code>bool prev_kv = 4;</code>
+     * @return The prevKv.
+     */
+    boolean getPrevKv();
   }
   /**
    * <pre>
-   * Request to watch for changes on a specific key
-   *
-   * In v1, only exact key matching is supported.
-   * Prefix watching may be added in future versions.
+   * Request to watch for changes on a key or key prefix.
    * </pre>
    *
    * Protobuf type {@code d_engine.client.WatchRequest}
@@ -9635,7 +11815,10 @@ public final class ClientApi {
     private com.google.protobuf.ByteString key_ = com.google.protobuf.ByteString.EMPTY;
     /**
      * <pre>
-     * Exact key to watch for changes
+     * Key to watch.
+     * prefix=false: exact key match.
+     * prefix=true:  prefix match — key must start with "/" and end with "/".
+     *               e.g. "/config/" watches all keys under /config/.
      * </pre>
      *
      * <code>bytes key = 2;</code>
@@ -9650,7 +11833,8 @@ public final class ClientApi {
     private boolean prefix_ = false;
     /**
      * <pre>
-     * When true, key is treated as a path prefix.
+     * When true, key is treated as a path prefix (must end with "/").
+     * Default false preserves backwards-compatible exact-match behaviour.
      * </pre>
      *
      * <code>bool prefix = 3;</code>
@@ -9659,6 +11843,23 @@ public final class ClientApi {
     @java.lang.Override
     public boolean getPrefix() {
       return prefix_;
+    }
+
+    public static final int PREV_KV_FIELD_NUMBER = 4;
+    private boolean prevKv_ = false;
+    /**
+     * <pre>
+     * When true, each WatchResponse includes the value that existed before
+     * the mutation (prev_value). Default false; server skips the extra read
+     * when no watcher requests it.
+     * </pre>
+     *
+     * <code>bool prev_kv = 4;</code>
+     * @return The prevKv.
+     */
+    @java.lang.Override
+    public boolean getPrevKv() {
+      return prevKv_;
     }
 
     private byte memoizedIsInitialized = -1;
@@ -9681,8 +11882,11 @@ public final class ClientApi {
       if (!key_.isEmpty()) {
         output.writeBytes(2, key_);
       }
-      if (prefix_) {
+      if (prefix_ != false) {
         output.writeBool(3, prefix_);
+      }
+      if (prevKv_ != false) {
+        output.writeBool(4, prevKv_);
       }
       getUnknownFields().writeTo(output);
     }
@@ -9701,9 +11905,13 @@ public final class ClientApi {
         size += com.google.protobuf.CodedOutputStream
           .computeBytesSize(2, key_);
       }
-      if (prefix_) {
+      if (prefix_ != false) {
         size += com.google.protobuf.CodedOutputStream
           .computeBoolSize(3, prefix_);
+      }
+      if (prevKv_ != false) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBoolSize(4, prevKv_);
       }
       size += getUnknownFields().getSerializedSize();
       memoizedSize = size;
@@ -9724,6 +11932,10 @@ public final class ClientApi {
           != other.getClientId()) return false;
       if (!getKey()
           .equals(other.getKey())) return false;
+      if (getPrefix()
+          != other.getPrefix()) return false;
+      if (getPrevKv()
+          != other.getPrevKv()) return false;
       if (!getUnknownFields().equals(other.getUnknownFields())) return false;
       return true;
     }
@@ -9739,6 +11951,12 @@ public final class ClientApi {
       hash = (53 * hash) + getClientId();
       hash = (37 * hash) + KEY_FIELD_NUMBER;
       hash = (53 * hash) + getKey().hashCode();
+      hash = (37 * hash) + PREFIX_FIELD_NUMBER;
+      hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+          getPrefix());
+      hash = (37 * hash) + PREV_KV_FIELD_NUMBER;
+      hash = (53 * hash) + com.google.protobuf.Internal.hashBoolean(
+          getPrevKv());
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
       return hash;
@@ -9838,10 +12056,7 @@ public final class ClientApi {
     }
     /**
      * <pre>
-     * Request to watch for changes on a specific key
-     *
-     * In v1, only exact key matching is supported.
-     * Prefix watching may be added in future versions.
+     * Request to watch for changes on a key or key prefix.
      * </pre>
      *
      * Protobuf type {@code d_engine.client.WatchRequest}
@@ -9879,6 +12094,8 @@ public final class ClientApi {
         bitField0_ = 0;
         clientId_ = 0;
         key_ = com.google.protobuf.ByteString.EMPTY;
+        prefix_ = false;
+        prevKv_ = false;
         return this;
       }
 
@@ -9917,6 +12134,12 @@ public final class ClientApi {
         }
         if (((from_bitField0_ & 0x00000002) != 0)) {
           result.key_ = key_;
+        }
+        if (((from_bitField0_ & 0x00000004) != 0)) {
+          result.prefix_ = prefix_;
+        }
+        if (((from_bitField0_ & 0x00000008) != 0)) {
+          result.prevKv_ = prevKv_;
         }
       }
 
@@ -9970,8 +12193,11 @@ public final class ClientApi {
         if (other.getKey() != com.google.protobuf.ByteString.EMPTY) {
           setKey(other.getKey());
         }
-        if (other.getPrefix()) {
+        if (other.getPrefix() != false) {
           setPrefix(other.getPrefix());
+        }
+        if (other.getPrevKv() != false) {
+          setPrevKv(other.getPrevKv());
         }
         this.mergeUnknownFields(other.getUnknownFields());
         onChanged();
@@ -10013,7 +12239,12 @@ public final class ClientApi {
                 prefix_ = input.readBool();
                 bitField0_ |= 0x00000004;
                 break;
-              } // case 24 (field 3, wire type 0)
+              } // case 24
+              case 32: {
+                prevKv_ = input.readBool();
+                bitField0_ |= 0x00000008;
+                break;
+              } // case 32
               default: {
                 if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                   done = true; // was an endgroup tag
@@ -10066,7 +12297,10 @@ public final class ClientApi {
       private com.google.protobuf.ByteString key_ = com.google.protobuf.ByteString.EMPTY;
       /**
        * <pre>
-       * Exact key to watch for changes
+       * Key to watch.
+       * prefix=false: exact key match.
+       * prefix=true:  prefix match — key must start with "/" and end with "/".
+       *               e.g. "/config/" watches all keys under /config/.
        * </pre>
        *
        * <code>bytes key = 2;</code>
@@ -10078,7 +12312,10 @@ public final class ClientApi {
       }
       /**
        * <pre>
-       * Exact key to watch for changes
+       * Key to watch.
+       * prefix=false: exact key match.
+       * prefix=true:  prefix match — key must start with "/" and end with "/".
+       *               e.g. "/config/" watches all keys under /config/.
        * </pre>
        *
        * <code>bytes key = 2;</code>
@@ -10094,7 +12331,10 @@ public final class ClientApi {
       }
       /**
        * <pre>
-       * Exact key to watch for changes
+       * Key to watch.
+       * prefix=false: exact key match.
+       * prefix=true:  prefix match — key must start with "/" and end with "/".
+       *               e.g. "/config/" watches all keys under /config/.
        * </pre>
        *
        * <code>bytes key = 2;</code>
@@ -10106,32 +12346,100 @@ public final class ClientApi {
         onChanged();
         return this;
       }
-      private boolean prefix_ = false;
+
+      private boolean prefix_ ;
       /**
+       * <pre>
+       * When true, key is treated as a path prefix (must end with "/").
+       * Default false preserves backwards-compatible exact-match behaviour.
+       * </pre>
+       *
        * <code>bool prefix = 3;</code>
        * @return The prefix.
        */
+      @java.lang.Override
       public boolean getPrefix() {
         return prefix_;
       }
       /**
+       * <pre>
+       * When true, key is treated as a path prefix (must end with "/").
+       * Default false preserves backwards-compatible exact-match behaviour.
+       * </pre>
+       *
        * <code>bool prefix = 3;</code>
        * @param value The prefix to set.
        * @return This builder for chaining.
        */
       public Builder setPrefix(boolean value) {
+
         prefix_ = value;
         bitField0_ |= 0x00000004;
         onChanged();
         return this;
       }
       /**
+       * <pre>
+       * When true, key is treated as a path prefix (must end with "/").
+       * Default false preserves backwards-compatible exact-match behaviour.
+       * </pre>
+       *
        * <code>bool prefix = 3;</code>
        * @return This builder for chaining.
        */
       public Builder clearPrefix() {
         bitField0_ = (bitField0_ & ~0x00000004);
         prefix_ = false;
+        onChanged();
+        return this;
+      }
+
+      private boolean prevKv_ ;
+      /**
+       * <pre>
+       * When true, each WatchResponse includes the value that existed before
+       * the mutation (prev_value). Default false; server skips the extra read
+       * when no watcher requests it.
+       * </pre>
+       *
+       * <code>bool prev_kv = 4;</code>
+       * @return The prevKv.
+       */
+      @java.lang.Override
+      public boolean getPrevKv() {
+        return prevKv_;
+      }
+      /**
+       * <pre>
+       * When true, each WatchResponse includes the value that existed before
+       * the mutation (prev_value). Default false; server skips the extra read
+       * when no watcher requests it.
+       * </pre>
+       *
+       * <code>bool prev_kv = 4;</code>
+       * @param value The prevKv to set.
+       * @return This builder for chaining.
+       */
+      public Builder setPrevKv(boolean value) {
+
+        prevKv_ = value;
+        bitField0_ |= 0x00000008;
+        onChanged();
+        return this;
+      }
+      /**
+       * <pre>
+       * When true, each WatchResponse includes the value that existed before
+       * the mutation (prev_value). Default false; server skips the extra read
+       * when no watcher requests it.
+       * </pre>
+       *
+       * <code>bool prev_kv = 4;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearPrevKv() {
+        bitField0_ = (bitField0_ & ~0x00000008);
+        prevKv_ = false;
         onChanged();
         return this;
       }
@@ -10262,10 +12570,29 @@ public final class ClientApi {
     d_engine.error.Error.ErrorCode getError();
 
     /**
+     * <pre>
+     * Raft applied index at the time this event was produced.
+     * Monotonically increasing. Clients use this as an anchor after receiving
+     * CANCELED: re-read state, then re-register watching from revision+1.
+     * </pre>
+     *
      * <code>uint64 revision = 5;</code>
      * @return The revision.
      */
     long getRevision();
+
+    /**
+     * <pre>
+     * Value before this mutation. Empty when:
+     *   - key did not exist before the write
+     *   - event_type is PROGRESS or CANCELED
+     *   - watcher was registered with prev_kv = false
+     * </pre>
+     *
+     * <code>bytes prev_value = 6;</code>
+     * @return The prevValue.
+     */
+    com.google.protobuf.ByteString getPrevValue();
   }
   /**
    * <pre>
@@ -10288,6 +12615,7 @@ public final class ClientApi {
       value_ = com.google.protobuf.ByteString.EMPTY;
       eventType_ = 0;
       error_ = 0;
+      prevValue_ = com.google.protobuf.ByteString.EMPTY;
     }
 
     @java.lang.Override
@@ -10397,6 +12725,8 @@ public final class ClientApi {
     /**
      * <pre>
      * Raft applied index at the time this event was produced.
+     * Monotonically increasing. Clients use this as an anchor after receiving
+     * CANCELED: re-read state, then re-register watching from revision+1.
      * </pre>
      *
      * <code>uint64 revision = 5;</code>
@@ -10405,6 +12735,24 @@ public final class ClientApi {
     @java.lang.Override
     public long getRevision() {
       return revision_;
+    }
+
+    public static final int PREV_VALUE_FIELD_NUMBER = 6;
+    private com.google.protobuf.ByteString prevValue_ = com.google.protobuf.ByteString.EMPTY;
+    /**
+     * <pre>
+     * Value before this mutation. Empty when:
+     *   - key did not exist before the write
+     *   - event_type is PROGRESS or CANCELED
+     *   - watcher was registered with prev_kv = false
+     * </pre>
+     *
+     * <code>bytes prev_value = 6;</code>
+     * @return The prevValue.
+     */
+    @java.lang.Override
+    public com.google.protobuf.ByteString getPrevValue() {
+      return prevValue_;
     }
 
     private byte memoizedIsInitialized = -1;
@@ -10436,6 +12784,9 @@ public final class ClientApi {
       if (revision_ != 0L) {
         output.writeUInt64(5, revision_);
       }
+      if (!prevValue_.isEmpty()) {
+        output.writeBytes(6, prevValue_);
+      }
       getUnknownFields().writeTo(output);
     }
 
@@ -10465,6 +12816,10 @@ public final class ClientApi {
         size += com.google.protobuf.CodedOutputStream
           .computeUInt64Size(5, revision_);
       }
+      if (!prevValue_.isEmpty()) {
+        size += com.google.protobuf.CodedOutputStream
+          .computeBytesSize(6, prevValue_);
+      }
       size += getUnknownFields().getSerializedSize();
       memoizedSize = size;
       return size;
@@ -10486,6 +12841,10 @@ public final class ClientApi {
           .equals(other.getValue())) return false;
       if (eventType_ != other.eventType_) return false;
       if (error_ != other.error_) return false;
+      if (getRevision()
+          != other.getRevision()) return false;
+      if (!getPrevValue()
+          .equals(other.getPrevValue())) return false;
       if (!getUnknownFields().equals(other.getUnknownFields())) return false;
       return true;
     }
@@ -10505,6 +12864,11 @@ public final class ClientApi {
       hash = (53 * hash) + eventType_;
       hash = (37 * hash) + ERROR_FIELD_NUMBER;
       hash = (53 * hash) + error_;
+      hash = (37 * hash) + REVISION_FIELD_NUMBER;
+      hash = (53 * hash) + com.google.protobuf.Internal.hashLong(
+          getRevision());
+      hash = (37 * hash) + PREV_VALUE_FIELD_NUMBER;
+      hash = (53 * hash) + getPrevValue().hashCode();
       hash = (29 * hash) + getUnknownFields().hashCode();
       memoizedHashCode = hash;
       return hash;
@@ -10644,6 +13008,8 @@ public final class ClientApi {
         value_ = com.google.protobuf.ByteString.EMPTY;
         eventType_ = 0;
         error_ = 0;
+        revision_ = 0L;
+        prevValue_ = com.google.protobuf.ByteString.EMPTY;
         return this;
       }
 
@@ -10688,6 +13054,12 @@ public final class ClientApi {
         }
         if (((from_bitField0_ & 0x00000008) != 0)) {
           result.error_ = error_;
+        }
+        if (((from_bitField0_ & 0x00000010) != 0)) {
+          result.revision_ = revision_;
+        }
+        if (((from_bitField0_ & 0x00000020) != 0)) {
+          result.prevValue_ = prevValue_;
         }
       }
 
@@ -10747,6 +13119,12 @@ public final class ClientApi {
         if (other.error_ != 0) {
           setErrorValue(other.getErrorValue());
         }
+        if (other.getRevision() != 0L) {
+          setRevision(other.getRevision());
+        }
+        if (other.getPrevValue() != com.google.protobuf.ByteString.EMPTY) {
+          setPrevValue(other.getPrevValue());
+        }
         this.mergeUnknownFields(other.getUnknownFields());
         onChanged();
         return this;
@@ -10797,7 +13175,12 @@ public final class ClientApi {
                 revision_ = input.readUInt64();
                 bitField0_ |= 0x00000010;
                 break;
-              } // case 40 (field 5, wire type 0)
+              } // case 40
+              case 50: {
+                prevValue_ = input.readBytes();
+                bitField0_ |= 0x00000020;
+                break;
+              } // case 50
               default: {
                 if (!super.parseUnknownField(input, extensionRegistry, tag)) {
                   done = true; // was an endgroup tag
@@ -11048,8 +13431,15 @@ public final class ClientApi {
         onChanged();
         return this;
       }
-      private long revision_ = 0L;
+
+      private long revision_ ;
       /**
+       * <pre>
+       * Raft applied index at the time this event was produced.
+       * Monotonically increasing. Clients use this as an anchor after receiving
+       * CANCELED: re-read state, then re-register watching from revision+1.
+       * </pre>
+       *
        * <code>uint64 revision = 5;</code>
        * @return The revision.
        */
@@ -11058,19 +13448,89 @@ public final class ClientApi {
         return revision_;
       }
       /**
+       * <pre>
+       * Raft applied index at the time this event was produced.
+       * Monotonically increasing. Clients use this as an anchor after receiving
+       * CANCELED: re-read state, then re-register watching from revision+1.
+       * </pre>
+       *
        * <code>uint64 revision = 5;</code>
        * @param value The revision to set.
        * @return This builder for chaining.
        */
       public Builder setRevision(long value) {
+
         revision_ = value;
         bitField0_ |= 0x00000010;
         onChanged();
         return this;
       }
+      /**
+       * <pre>
+       * Raft applied index at the time this event was produced.
+       * Monotonically increasing. Clients use this as an anchor after receiving
+       * CANCELED: re-read state, then re-register watching from revision+1.
+       * </pre>
+       *
+       * <code>uint64 revision = 5;</code>
+       * @return This builder for chaining.
+       */
       public Builder clearRevision() {
         bitField0_ = (bitField0_ & ~0x00000010);
         revision_ = 0L;
+        onChanged();
+        return this;
+      }
+
+      private com.google.protobuf.ByteString prevValue_ = com.google.protobuf.ByteString.EMPTY;
+      /**
+       * <pre>
+       * Value before this mutation. Empty when:
+       *   - key did not exist before the write
+       *   - event_type is PROGRESS or CANCELED
+       *   - watcher was registered with prev_kv = false
+       * </pre>
+       *
+       * <code>bytes prev_value = 6;</code>
+       * @return The prevValue.
+       */
+      @java.lang.Override
+      public com.google.protobuf.ByteString getPrevValue() {
+        return prevValue_;
+      }
+      /**
+       * <pre>
+       * Value before this mutation. Empty when:
+       *   - key did not exist before the write
+       *   - event_type is PROGRESS or CANCELED
+       *   - watcher was registered with prev_kv = false
+       * </pre>
+       *
+       * <code>bytes prev_value = 6;</code>
+       * @param value The prevValue to set.
+       * @return This builder for chaining.
+       */
+      public Builder setPrevValue(com.google.protobuf.ByteString value) {
+        if (value == null) { throw new NullPointerException(); }
+        prevValue_ = value;
+        bitField0_ |= 0x00000020;
+        onChanged();
+        return this;
+      }
+      /**
+       * <pre>
+       * Value before this mutation. Empty when:
+       *   - key did not exist before the write
+       *   - event_type is PROGRESS or CANCELED
+       *   - watcher was registered with prev_kv = false
+       * </pre>
+       *
+       * <code>bytes prev_value = 6;</code>
+       * @return This builder for chaining.
+       */
+      public Builder clearPrevValue() {
+        bitField0_ = (bitField0_ & ~0x00000020);
+        prevValue_ = getDefaultInstance().getPrevValue();
         onChanged();
         return this;
       }
@@ -11189,6 +13649,21 @@ public final class ClientApi {
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
       internal_static_d_engine_client_ReadResults_fieldAccessorTable;
   private static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_d_engine_client_KvEntry_descriptor;
+  private static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_d_engine_client_KvEntry_fieldAccessorTable;
+  private static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_d_engine_client_ScanRequest_descriptor;
+  private static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_d_engine_client_ScanRequest_fieldAccessorTable;
+  private static final com.google.protobuf.Descriptors.Descriptor
+    internal_static_d_engine_client_ScanResponse_descriptor;
+  private static final 
+    com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
+      internal_static_d_engine_client_ScanResponse_fieldAccessorTable;
+  private static final com.google.protobuf.Descriptors.Descriptor
     internal_static_d_engine_client_WatchMembershipRequest_descriptor;
   private static final 
     com.google.protobuf.GeneratedMessageV3.FieldAccessorTable
@@ -11243,32 +13718,41 @@ public final class ClientApi {
       ".d_engine.error.ErrorMetadataB\020\n\016success" +
       "_result\"*\n\014ClientResult\022\013\n\003key\030\001 \001(\014\022\r\n\005" +
       "value\030\002 \001(\014\"=\n\013ReadResults\022.\n\007results\030\001 " +
-      "\003(\0132\035.d_engine.client.ClientResult\"+\n\026Wa" +
-      "tchMembershipRequest\022\021\n\tclient_id\030\001 \001(\r\"" +
-      "P\n\022MembershipSnapshot\022\017\n\007members\030\001 \003(\r\022\020" +
-      "\n\010learners\030\002 \003(\r\022\027\n\017committed_index\030\003 \001(" +
-      "\004\".\n\014WatchRequest\022\021\n\tclient_id\030\001 \001(\r\022\013\n\003" +
-      "key\030\002 \001(\014\"\212\001\n\rWatchResponse\022\013\n\003key\030\001 \001(\014" +
-      "\022\r\n\005value\030\002 \001(\014\0223\n\nevent_type\030\003 \001(\0162\037.d_" +
-      "engine.client.WatchEventType\022(\n\005error\030\004 " +
-      "\001(\0162\031.d_engine.error.ErrorCode*\240\001\n\025ReadC" +
-      "onsistencyPolicy\022&\n\"READ_CONSISTENCY_POL" +
-      "ICY_LEASE_READ\020\000\022-\n)READ_CONSISTENCY_POL" +
-      "ICY_LINEARIZABLE_READ\020\001\0220\n,READ_CONSISTE" +
-      "NCY_POLICY_EVENTUAL_CONSISTENCY\020\002*G\n\016Wat" +
-      "chEventType\022\030\n\024WATCH_EVENT_TYPE_PUT\020\000\022\033\n" +
-      "\027WATCH_EVENT_TYPE_DELETE\020\0012\364\002\n\021RaftClien" +
-      "tService\022Y\n\021HandleClientWrite\022#.d_engine" +
-      ".client.ClientWriteRequest\032\037.d_engine.cl" +
-      "ient.ClientResponse\022W\n\020HandleClientRead\022" +
-      "\".d_engine.client.ClientReadRequest\032\037.d_" +
-      "engine.client.ClientResponse\022H\n\005Watch\022\035." +
-      "d_engine.client.WatchRequest\032\036.d_engine." +
-      "client.WatchResponse0\001\022a\n\017WatchMembershi" +
-      "p\022\'.d_engine.client.WatchMembershipReque" +
-      "st\032#.d_engine.client.MembershipSnapshot0" +
-      "\001B,Z*github.com/deventlab/d-engine/proto" +
-      "/clientb\006proto3"
+      "\003(\0132\035.d_engine.client.ClientResult\"%\n\007Kv" +
+      "Entry\022\013\n\003key\030\001 \001(\014\022\r\n\005value\030\002 \001(\014\"0\n\013Sca" +
+      "nRequest\022\021\n\tclient_id\030\001 \001(\r\022\016\n\006prefix\030\002 " +
+      "\001(\014\"K\n\014ScanResponse\022)\n\007entries\030\001 \003(\0132\030.d" +
+      "_engine.client.KvEntry\022\020\n\010revision\030\002 \001(\004" +
+      "\"+\n\026WatchMembershipRequest\022\021\n\tclient_id\030" +
+      "\001 \001(\r\"P\n\022MembershipSnapshot\022\017\n\007members\030\001" +
+      " \003(\r\022\020\n\010learners\030\002 \003(\r\022\027\n\017committed_inde" +
+      "x\030\003 \001(\004\"O\n\014WatchRequest\022\021\n\tclient_id\030\001 \001" +
+      "(\r\022\013\n\003key\030\002 \001(\014\022\016\n\006prefix\030\003 \001(\010\022\017\n\007prev_" +
+      "kv\030\004 \001(\010\"\260\001\n\rWatchResponse\022\013\n\003key\030\001 \001(\014\022" +
+      "\r\n\005value\030\002 \001(\014\0223\n\nevent_type\030\003 \001(\0162\037.d_e" +
+      "ngine.client.WatchEventType\022(\n\005error\030\004 \001" +
+      "(\0162\031.d_engine.error.ErrorCode\022\020\n\010revisio" +
+      "n\030\005 \001(\004\022\022\n\nprev_value\030\006 \001(\014*\240\001\n\025ReadCons" +
+      "istencyPolicy\022&\n\"READ_CONSISTENCY_POLICY" +
+      "_LEASE_READ\020\000\022-\n)READ_CONSISTENCY_POLICY" +
+      "_LINEARIZABLE_READ\020\001\0220\n,READ_CONSISTENCY" +
+      "_POLICY_EVENTUAL_CONSISTENCY\020\002*\205\001\n\016Watch" +
+      "EventType\022\030\n\024WATCH_EVENT_TYPE_PUT\020\000\022\033\n\027W" +
+      "ATCH_EVENT_TYPE_DELETE\020\001\022\035\n\031WATCH_EVENT_" +
+      "TYPE_CANCELED\020\002\022\035\n\031WATCH_EVENT_TYPE_PROG" +
+      "RESS\020\0032\305\003\n\021RaftClientService\022Y\n\021HandleCl" +
+      "ientWrite\022#.d_engine.client.ClientWriteR" +
+      "equest\032\037.d_engine.client.ClientResponse\022" +
+      "W\n\020HandleClientRead\022\".d_engine.client.Cl" +
+      "ientReadRequest\032\037.d_engine.client.Client" +
+      "Response\022O\n\020HandleClientScan\022\034.d_engine." +
+      "client.ScanRequest\032\035.d_engine.client.Sca" +
+      "nResponse\022H\n\005Watch\022\035.d_engine.client.Wat" +
+      "chRequest\032\036.d_engine.client.WatchRespons" +
+      "e0\001\022a\n\017WatchMembership\022\'.d_engine.client" +
+      ".WatchMembershipRequest\032#.d_engine.clien" +
+      "t.MembershipSnapshot0\001B,Z*github.com/dev" +
+      "entlab/d-engine/proto/clientb\006proto3"
     };
     descriptor = com.google.protobuf.Descriptors.FileDescriptor
       .internalBuildGeneratedFileFrom(descriptorData,
@@ -11335,30 +13819,48 @@ public final class ClientApi {
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_d_engine_client_ReadResults_descriptor,
         new java.lang.String[] { "Results", });
-    internal_static_d_engine_client_WatchMembershipRequest_descriptor =
+    internal_static_d_engine_client_KvEntry_descriptor =
       getDescriptor().getMessageTypes().get(7);
+    internal_static_d_engine_client_KvEntry_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_d_engine_client_KvEntry_descriptor,
+        new java.lang.String[] { "Key", "Value", });
+    internal_static_d_engine_client_ScanRequest_descriptor =
+      getDescriptor().getMessageTypes().get(8);
+    internal_static_d_engine_client_ScanRequest_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_d_engine_client_ScanRequest_descriptor,
+        new java.lang.String[] { "ClientId", "Prefix", });
+    internal_static_d_engine_client_ScanResponse_descriptor =
+      getDescriptor().getMessageTypes().get(9);
+    internal_static_d_engine_client_ScanResponse_fieldAccessorTable = new
+      com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
+        internal_static_d_engine_client_ScanResponse_descriptor,
+        new java.lang.String[] { "Entries", "Revision", });
+    internal_static_d_engine_client_WatchMembershipRequest_descriptor =
+      getDescriptor().getMessageTypes().get(10);
     internal_static_d_engine_client_WatchMembershipRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_d_engine_client_WatchMembershipRequest_descriptor,
         new java.lang.String[] { "ClientId", });
     internal_static_d_engine_client_MembershipSnapshot_descriptor =
-      getDescriptor().getMessageTypes().get(8);
+      getDescriptor().getMessageTypes().get(11);
     internal_static_d_engine_client_MembershipSnapshot_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_d_engine_client_MembershipSnapshot_descriptor,
         new java.lang.String[] { "Members", "Learners", "CommittedIndex", });
     internal_static_d_engine_client_WatchRequest_descriptor =
-      getDescriptor().getMessageTypes().get(9);
+      getDescriptor().getMessageTypes().get(12);
     internal_static_d_engine_client_WatchRequest_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_d_engine_client_WatchRequest_descriptor,
-        new java.lang.String[] { "ClientId", "Key", });
+        new java.lang.String[] { "ClientId", "Key", "Prefix", "PrevKv", });
     internal_static_d_engine_client_WatchResponse_descriptor =
-      getDescriptor().getMessageTypes().get(10);
+      getDescriptor().getMessageTypes().get(13);
     internal_static_d_engine_client_WatchResponse_fieldAccessorTable = new
       com.google.protobuf.GeneratedMessageV3.FieldAccessorTable(
         internal_static_d_engine_client_WatchResponse_descriptor,
-        new java.lang.String[] { "Key", "Value", "EventType", "Error", });
+        new java.lang.String[] { "Key", "Value", "EventType", "Error", "Revision", "PrevValue", });
     d_engine.error.Error.getDescriptor();
   }
 

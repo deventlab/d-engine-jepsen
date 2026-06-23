@@ -1,5 +1,5 @@
 # docker/jepsen/Makefile
-.PHONY: test run-workload test-scan-watch test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup
+.PHONY: build test run-workload test-scan-watch test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup proto-gen
 
 # Configurable parameters
 TIME_LIMIT       ?= 60
@@ -13,6 +13,23 @@ NODE3            ?= node3
 JEPSEN_CONTAINER ?= d-engine-jepsen-jepsen-1
 ENDPOINTS        ?= http://node1:9081,http://node2:9082,http://node3:9083
 COMPOSE_FILE     ?= ./docker-compose.yml
+
+# Regenerate Java proto stubs from d-engine proto definitions.
+# Requires protoc 3.25.3 matching protobuf-java 3.25.3 in project.clj.
+# Download: https://repo1.maven.org/maven2/com/google/protobuf/protoc/3.25.3/protoc-3.25.3-osx-aarch_64.exe
+# After downloading: chmod +x <binary> and set PROTOC to its path.
+PROTOC ?= protoc-3.25.3
+proto-gen:
+	$(PROTOC) \
+	  --proto_path=../d-engine/d-engine-proto \
+	  --java_out=java-src \
+	  proto/error.proto \
+	  proto/common.proto \
+	  proto/client/client_api.proto
+
+# Build Docker images (auto-loads docker-compose.override.yml if present)
+build:
+	docker compose build
 
 # Restart Docker Compose stack
 restart-stack:

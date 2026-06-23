@@ -26,6 +26,9 @@ pom.xml.asc
 # Environment configuration (local, not committed)
 .env
 
+# Local dev Docker Compose override (uses local d-engine source)
+docker-compose.override.yml
+
 # Clojure tooling (local dev only)
 .clj-kondo/
 .lsp/
@@ -37,3 +40,4 @@ CLAUDE.md
 .claude/
 /.rules
 .github/copilot-instructions.md
+jepsen

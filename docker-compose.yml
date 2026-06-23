@@ -1,6 +1,6 @@
 services:
   node1: &node-base
-    image: demo:v0.2.4
+    image: deventlab/d-engine:v0.2.4
     cap_add:
       - NET_ADMIN # Add the NET_ADMIN capability
     environment:
@@ -19,7 +19,7 @@ services:
       - "2021:22"
       - "9081:9081"
     volumes:
-      - ${SSH_KEYS_PATH:-./jepsen/sshkeys}:/root/.ssh
+      - ${SSH_KEYS_PATH:-./sshkeys}:/root/.ssh
       - ${CONFIG_PATH:-./config}:/app/config
       - ${LOGS_PATH:-./output/logs}:/app/logs
       - ${DB_PATH:-./output/db}:/app/db
@@ -103,12 +103,7 @@ services:
       - "9086:9086"
 
   jepsen:
-    image: jepsen:2.0
-    build:
-      context: .
-      dockerfile: Dockerfile
-      additional_contexts:
-        rust-workspace: ../d-engine
+    image: deventlab/d-engine-jepsen:v0.2.4
     cap_add:
       - NET_ADMIN # Add the NET_ADMIN capability
     environment:
