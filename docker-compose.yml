@@ -1,8 +1,21 @@
 services:
+  lazyfs-builder:
+    build:
+      context: docker/lazyfs
+    volumes:
+      - lazyfs_bin:/opt/jepsen/lazyfs
+    command: ["true"]
+
   node1: &node-base
     image: deventlab/d-engine:v0.2.4
     cap_add:
       - NET_ADMIN # Add the NET_ADMIN capability
+      - SYS_ADMIN # Required for FUSE mounts (lazyfs)
+    devices:
+      - /dev/fuse
+    depends_on:
+      lazyfs-builder:
+        condition: service_completed_successfully
     environment:
       ID: 1
       PROMETHEUS_PORT: 8081
@@ -23,6 +36,7 @@ services:
       - ${CONFIG_PATH:-./config}:/app/config
       - ${LOGS_PATH:-./output/logs}:/app/logs
       - ${DB_PATH:-./output/db}:/app/db
+      - lazyfs_bin:/opt/jepsen/lazyfs:ro
       # - ${SNAPSHOTS_PATH:-./output/snapshots}:/app/snapshots
 
   node2:
@@ -127,6 +141,7 @@ services:
 volumes:
   prometheus_data:
   grafana_data:
+  lazyfs_bin:
 
 networks:
   mynetwork:

@@ -3,8 +3,8 @@ FROM rust:latest AS builder
 
 WORKDIR /build
 
-# Install the protobuf compiler
-RUN apt-get update && apt-get install -y protobuf-compiler
+# Install the protobuf compiler and libclang (bindgen needs it to build zstd-sys)
+RUN apt-get update && apt-get install -y protobuf-compiler clang libclang-dev
 
 # Disable sccache: .cargo/config.toml sets rustc-wrapper=sccache for local dev,
 # but sccache is not available in CI/Docker.

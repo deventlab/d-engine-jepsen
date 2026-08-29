@@ -1,5 +1,5 @@
 # docker/jepsen/Makefile
-.PHONY: build test run-workload test-scan-watch test-membership test-membership-readonly test-membership-single view report clean restart-stack ssh-setup proto-gen
+.PHONY: build test run-workload test-scan-watch test-membership test-membership-readonly test-membership-single test-durability view report clean restart-stack ssh-setup proto-gen
 
 # Configurable parameters
 TIME_LIMIT       ?= 60
@@ -7,6 +7,7 @@ WORKLOAD         ?= register
 FAULTS           ?= partition
 RATE             ?= 10
 NEMESIS_INTERVAL ?= 10
+LAZYFS           ?=
 NODE1            ?= node1
 NODE2            ?= node2
 NODE3            ?= node3
@@ -83,7 +84,8 @@ run-workload: restart-stack
 		    --workload '"${WORKLOAD}"' \
 		    --faults '"${FAULTS}"' \
 		    --rate '"${RATE}"' \
-		    --nemesis-interval '"${NEMESIS_INTERVAL}"''
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"' \
+		    '"$(if $(LAZYFS),--lazyfs,)"''
 	@echo "Jepsen test finished, checking result..."
 	docker exec $(JEPSEN_CONTAINER) bash -c '\
 		lein trampoline run -m clojure.main -e "\
@@ -98,6 +100,54 @@ run-workload: restart-stack
 					(slurp \"/app/store/latest/results.edn\"))\
 				:valid?)\
 				\"✅ PASS\" \"❌ FAIL\"))"'
+
+# Durability campaign: append/Elle workload + lazyfs + leader-plus-one kill
+# (kills the current leader + one other node each cycle, leaves a third node
+# alive so the workload keeps producing observable history).
+#
+# This is NOT part of `make test` and is not a pass/fail CI gate: catching a
+# quorum-before-durable-persist violation needs sustained high write pressure
+# so an unflushed backlog exists when the kill lands, and a single run has
+# no statistical weight either way. Treat it as a campaign — run it
+# repeatedly / for longer before trusting any result. See
+# 444-445-jepsen-lazyfs-methodology-gap.md for the full rationale.
+#   make test-durability
+#   make test-durability RATE=500 TIME_LIMIT=600
+test-durability: RATE := 200
+test-durability: TIME_LIMIT := 300
+test-durability: NEMESIS_INTERVAL := 5
+test-durability: restart-stack
+	@echo "Starting durability campaign: rate=$(RATE) time=$(TIME_LIMIT)s (leader+1 kill, lazyfs)"
+	docker exec -e SSH_AUTH_SOCK=/ssh-agent $(JEPSEN_CONTAINER) bash -c '\
+		  eval "$$(ssh-agent -s)" && \
+		  ssh-add /root/.ssh/id_rsa && \
+		  lein run test \
+		    --node '"${NODE1}"' \
+		    --node '"${NODE2}"' \
+		    --node '"${NODE3}"' \
+		    --endpoints '"${ENDPOINTS}"' \
+		    --time-limit '"${TIME_LIMIT}"' \
+		    --workload append \
+		    --faults kill \
+		    --rate '"${RATE}"' \
+		    --nemesis-interval '"${NEMESIS_INTERVAL}"' \
+		    --lazyfs'
+	@echo "Durability campaign finished, checking result..."
+	docker exec $(JEPSEN_CONTAINER) bash -c '\
+		lein trampoline run -m clojure.main -e "\
+			(require '\''[knossos.model :as model])\
+			(println \
+				(case (-> (clojure.edn/read-string \
+					{:readers {\
+						'\''knossos.model.Register model/->Register\
+						'\''knossos.model.CASRegister model/->CASRegister\
+						'\''knossos.model.Inconsistent model/->Inconsistent}\
+					 :default (fn [_ v] v)}\
+					(slurp \"/app/store/latest/results.edn\"))\
+					:valid?)\
+				true \"✅ PASS\"\
+				false \"❌ FAIL\"\
+				\"⚠️  INCONCLUSIVE (not a pass, check :anomaly-types)\"))"'
 
 # Scan-then-watch reconnection workload.
 # Verifies no-gap, no-phantom, and revision-monotonicity under fault injection.

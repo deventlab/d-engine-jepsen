@@ -1,0 +1,34 @@
+# Local development override — build images from local d-engine source.
+# This file is NOT committed (see .gitignore).
+# Requires ../d-engine to be checked out alongside this repo.
+#
+# Usage:
+#   docker compose build   # builds from local source (this file is auto-loaded)
+#   docker compose up
+#
+# To use published Docker Hub images instead, temporarily rename or remove this file.
+
+services:
+  node1: &demo-build
+    build:
+      context: ../d-engine
+      dockerfile: examples/three-nodes-standalone/docker/Dockerfile
+
+  node2:
+    <<: *demo-build
+
+  node3:
+    <<: *demo-build
+
+  node4:
+    <<: *demo-build
+
+  node5:
+    <<: *demo-build
+
+  jepsen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      additional_contexts:
+        rust-workspace: ../d-engine
