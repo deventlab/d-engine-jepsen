@@ -54,6 +54,7 @@
           :env     {"CONFIG_PATH"  conf
                     "LOG_DIR"      log
                     "METRICS_PORT" (str mport)
+                    "DB_PATH"      (data-dir node)
                     "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
          "/usr/local/bin/demo")))))
 
