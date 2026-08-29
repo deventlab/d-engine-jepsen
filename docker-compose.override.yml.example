@@ -1,12 +1,15 @@
-# Local development override — build images from local d-engine source.
-# This file is NOT committed (see .gitignore).
+# Template for local development: build images from local d-engine source
+# instead of pulling published Docker Hub images.
 # Requires ../d-engine to be checked out alongside this repo.
 #
 # Usage:
-#   docker compose build   # builds from local source (this file is auto-loaded)
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose build   # builds from local source (docker-compose.override.yml is auto-loaded)
 #   docker compose up
 #
-# To use published Docker Hub images instead, temporarily rename or remove this file.
+# docker-compose.override.yml itself is gitignored — it's meant to point at
+# whatever local d-engine checkout you're testing, not to be shared. To go
+# back to published Docker Hub images, delete or rename that copy.
 
 services:
   node1: &demo-build

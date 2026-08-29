@@ -1,10 +1,22 @@
 services:
   lazyfs-builder:
+    # Opt-in: this always builds locally (apt + git clone + C++ compile,
+    # no published image), which would otherwise force a build on the
+    # default `docker compose up` path README documents as pull-only.
+    # Only activated when the lazyfs profile is enabled (see Makefile's
+    # restart-stack, gated on LAZYFS).
+    profiles: ["lazyfs"]
     build:
       context: docker/lazyfs
     volumes:
-      - lazyfs_bin:/opt/jepsen/lazyfs
-    command: ["true"]
+      # Mounted at a different path than the image's own build output
+      # (/opt/jepsen/lazyfs) on purpose: if the volume were mounted at that
+      # same path, Docker's "seed an empty volume from image content" trick
+      # would only ever run once, and rebuilding this image would silently
+      # leave node1-5 on a stale lazyfs binary forever. Copying explicitly
+      # on every run means a rebuild always propagates.
+      - lazyfs_bin:/shared
+    command: ["sh", "-c", "rm -rf /shared/* && cp -a /opt/jepsen/lazyfs/. /shared/"]
 
   node1: &node-base
     image: deventlab/d-engine:v0.2.4
@@ -16,6 +28,7 @@ services:
     depends_on:
       lazyfs-builder:
         condition: service_completed_successfully
+        required: false
     environment:
       ID: 1
       PROMETHEUS_PORT: 8081

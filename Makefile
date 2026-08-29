@@ -38,7 +38,7 @@ restart-stack:
 	@rm -rf ./output/logs/* ./output/db/*
 	@echo "Restarting Docker Compose stack..."
 	@docker compose -f $(COMPOSE_FILE) down
-	@docker compose -f $(COMPOSE_FILE) up -d
+	@docker compose -f $(COMPOSE_FILE) $(if $(LAZYFS),--profile lazyfs,) up -d
 	@echo "Waiting for cluster to initialize (10 seconds)..."
 	@sleep 10
 
@@ -113,6 +113,7 @@ run-workload: restart-stack
 # 444-445-jepsen-lazyfs-methodology-gap.md for the full rationale.
 #   make test-durability
 #   make test-durability RATE=500 TIME_LIMIT=600
+test-durability: LAZYFS := 1
 test-durability: RATE := 200
 test-durability: TIME_LIMIT := 300
 test-durability: NEMESIS_INTERVAL := 5
