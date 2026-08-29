@@ -96,6 +96,7 @@
               {:db        db
                :nodes     (:nodes opts)
                :faults    (set (:faults opts))
+               :lazyfs    (:lazyfs opts)
                :partition {:targets [:majority :primaries]}
                :pause     {:targets [:all]}
                :kill      {:targets [:minority]}
@@ -138,9 +139,11 @@
               (gen/clients (:final-generator wl)))]
     (merge tests/noop-test
            opts
-           {:name      (str "d-engine-" (:workload opts "register"))
+           {:name      (str "d-engine-" (:workload opts "register")
+                            (when (:lazyfs opts) "-lazyfs"))
             :ssh       {:private-key-path        "/root/.ssh/id_rsa"
                         :strict-host-key-checking false}
+            :lazyfs    (:lazyfs opts)
             :db        db
             :client    (:client wl)
             :nemesis   combined-nemesis
@@ -180,7 +183,10 @@
    [nil "--nemesis-interval SECS" "Seconds between nemesis operations"
     :default  10
     :parse-fn read-string
-    :validate [pos? "nemesis-interval must be positive"]]])
+    :validate [pos? "nemesis-interval must be positive"]]
+
+   [nil "--lazyfs" "Mount each node's data dir under lazyfs, and make the kill nemesis lose unfsynced writes (simulated power loss)"
+    :default false]])
 
 (defn -main [& args]
   (cli/run!

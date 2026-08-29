@@ -17,6 +17,9 @@ pom.xml.asc
 # Jepsen test results
 /store/
 
+# Test-only SSH keys + test results under jepsen/ (contains private keys)
+/jepsen/
+
 # Downloaded binaries
 /bin/
 
@@ -40,4 +43,3 @@ CLAUDE.md
 .claude/
 /.rules
 .github/copilot-instructions.md
-jepsen

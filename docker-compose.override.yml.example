@@ -1,0 +1,37 @@
+# Template for local development: build images from local d-engine source
+# instead of pulling published Docker Hub images.
+# Requires ../d-engine to be checked out alongside this repo.
+#
+# Usage:
+#   cp docker-compose.override.yml.example docker-compose.override.yml
+#   docker compose build   # builds from local source (docker-compose.override.yml is auto-loaded)
+#   docker compose up
+#
+# docker-compose.override.yml itself is gitignored — it's meant to point at
+# whatever local d-engine checkout you're testing, not to be shared. To go
+# back to published Docker Hub images, delete or rename that copy.
+
+services:
+  node1: &demo-build
+    build:
+      context: ../d-engine
+      dockerfile: examples/three-nodes-standalone/docker/Dockerfile
+
+  node2:
+    <<: *demo-build
+
+  node3:
+    <<: *demo-build
+
+  node4:
+    <<: *demo-build
+
+  node5:
+    <<: *demo-build
+
+  jepsen:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      additional_contexts:
+        rust-workspace: ../d-engine

@@ -47,7 +47,6 @@ max_buffered_entries = 10000
 [raft.snapshot]
 enable = true
 max_log_entries_before_snapshot = 50
-snapshot_cool_down_since_last_check = { secs = 5 }
 snapshots_dir = "./snapshots/"
 retained_log_entries = 3
 
