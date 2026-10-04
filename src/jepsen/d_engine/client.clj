@@ -143,17 +143,23 @@
         (catch Exception e
           {:type :info :error (str e)})))))
 
-(defn lget
-  "Linearizable read of key. Returns {:type :ok :value v} or nil-value on KEY_NOT_EXIST,
+(def read-policies
+  "Read consistency policies a workload can ask for."
+  {:linearizable ClientApi$ReadConsistencyPolicy/READ_CONSISTENCY_POLICY_LINEARIZABLE_READ
+   :lease        ClientApi$ReadConsistencyPolicy/READ_CONSISTENCY_POLICY_LEASE_READ})
+
+(defn- read-with-policy
+  "Read of key under a read consistency policy (a ReadConsistencyPolicy value).
+   Returns {:type :ok :value v} or nil-value on KEY_NOT_EXIST,
    :info if outcome unknown, :fail on definite error."
-  [channels key]
+  [channels key ^ClientApi$ReadConsistencyPolicy policy]
   (with-failover channels
     (fn [^ManagedChannel ch]
       (try
         (let [req  (-> (ClientApi$ClientReadRequest/newBuilder)
                        (.setClientId client-id)
                        (.addKeys (encode-u64 key))
-                       (.setConsistencyPolicy ClientApi$ReadConsistencyPolicy/READ_CONSISTENCY_POLICY_LINEARIZABLE_READ)
+                       (.setConsistencyPolicy policy)
                        (.build))
               resp (.handleClientRead (blocking-stub ch) req)
               code (.getError resp)]
@@ -174,6 +180,18 @@
             {:type :info :error (str (.getStatus e))}))
         (catch Exception e
           {:type :info :error (str e)})))))
+
+(defn lget
+  "Read of key. The policy is :linearizable (the default) or :lease. A lease read
+   is answered by the leader from its own state while its lease is valid, without
+   asking the followers. Returns {:type :ok :value v}, :info if the outcome is
+   unknown, :fail on a definite error."
+  ([channels key] (lget channels key :linearizable))
+  ([channels key policy]
+   (read-with-policy channels key
+                     (or (get read-policies policy)
+                         (throw (ex-info "unknown read policy"
+                                         {:policy policy :known (keys read-policies)}))))))
 
 (defn cas!
   "Atomic compare-and-swap. Returns {:type :ok :swapped true/false},

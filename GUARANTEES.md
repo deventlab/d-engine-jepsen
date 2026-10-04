@@ -1,168 +1,194 @@
 # d-engine Correctness Guarantees
 
-Verified by [Jepsen](https://jepsen.io/) testing on d-engine v0.2.4.
+Verified by [Jepsen](https://jepsen.io/) testing on d-engine v0.2.5.
 
 ---
 
-## What d-engine Guarantees
+## 0. How to read this file
 
-### 1. Linearizability
-
-Read/write operations appear to execute atomically at a single point in real time, consistent with the global commit order imposed by Raft. No linearizability violation was observed under crash fault injection.
-
-**Caveat**: Linearizability is **not** guaranteed under network partition. d-engine's `LinearizableRead` implementation does not confirm quorum leadership before serving reads — it relies on the lease expiry window rather than a Raft §8 read-index round-trip. An isolated leader may serve stale reads for up to 500ms while its lease remains valid, which Knossos detects as a linearizability violation. This is a known bug tracked separately; `make test` exercises the `register` workload under `FAULTS=kill` (crash only) to avoid non-deterministic failures from this window.
-
-**Verified by**: `register` workload (Knossos linearizability checker, `FAULTS=kill`), `append` workload (Elle strict-serializable checker, `FAULTS=partition`). Jepsen testing finds violations; passing runs do not constitute a formal proof of correctness.
-
-### 2. Partition Tolerance — No Split-Brain
-
-During a network partition, at most one partition (the majority) can accept writes. The minority partition rejects writes. After the partition heals, the cluster converges to a single consistent state without data loss. No split-brain was observed in any test run.
-
-**Caveat**: d-engine uses LeaseRead (`lease_duration_ms = 500ms`). A node that becomes isolated may continue serving reads for up to 500ms while its lease is still valid. This bounded window is an inherent property of lease-based reads and is not eliminated by partition fault injection.
-
-**Verified by**: all workloads under `FAULTS=partition` with majority, minority, and primaries-isolated topologies.
-
-### 3. Crash Durability
-
-No acknowledged write was lost or rolled back under minority crash fault injection. Writes survived leader crashes, follower crashes, and simultaneous minority-node SIGKILL.
-
-**Scope**: Tests cover minority-node SIGKILL with automatic restart. Simultaneous crash of all nodes (e.g. full power loss) is not covered; d-engine uses a `MemFirst` persistence strategy with periodic batch flushing, so unflushed entries could be lost in that scenario.
-
-**Verified by**: all workloads under `FAULTS=kill` (SIGKILL on minority nodes, with restart).
-
-### 4. Single-Leader Safety
-
-No two-leader anomaly was observed. Raft's term-based voting guarantees at most one leader per term by construction; any violation would produce a non-linearizable history detectable by Knossos.
-
-**Verified by**: `register` workload — a two-leader scenario producing conflicting committed entries would manifest as a linearizability violation.
-
-### 5. Snapshot Recovery
-
-Followers that fall behind (missed log entries, killed and restarted) were observed to recover via snapshot transfer and rejoin consensus correctly. No data loss or incorrect reads were observed after recovery.
-
-**Scope**: Recovery was exercised within bounded lag windows (120s test runs). "Arbitrarily far behind" in Raft theory requires snapshot support; whether d-engine handles extreme lag (e.g. weeks of missed entries) is not covered by these tests.
-
-**Verified by**: `set` workload under `FAULTS=kill,partition` — lagged followers rejoin and serve correct reads after recovery.
-
-### 6. Watch Stream Ordering
-
-The Watch streaming RPC delivers PUT events in strictly increasing commit order within each subscription window. No backward jumps occur; events reflect Raft's total commit ordering.
-
-**Verified by**: `watch` workload (custom checker, per-window strict ordering).
-
-### 7. Account Balance Invariant
-
-Concurrent cross-key transfers preserve the total balance across all accounts. No money is created or destroyed, even under concurrent writes and partial failures.
-
-**Verified by**: `bank` workload (balance invariant checker).
-
-### 8. Scan-then-Watch Reconnection Correctness
-
-The zero-race-window reconnect pattern (Watch first → Scan → drain events with `revision > scan_revision`) satisfies three invariants under fault injection:
-
-- **No gap**: every committed PUT is eventually observed by at least one reader (in the scan snapshot or a subsequent watch event).
-- **No phantom**: every value observed by a reader corresponds to a committed write.
-- **Revision monotonicity**: within one watch session, event revisions strictly increase; the first watch-event revision is always ≥ the scan revision.
-
-The `WATCH_EVENT_TYPE_CANCELED` path (server-side buffer overflow) is also exercised — triggered by injecting `RATE=200` writes with `FAULTS=none` — and the reconnect loop correctly re-syncs without gaps or phantoms.
-
-**Verified by**: `scan-watch` workload (custom no-gap / no-phantom / monotonicity checker), tested across partition faults, kill+partition faults, and high-rate buffer-overflow scenarios.
-
-### 9. Dynamic Cluster Membership
-
-New nodes can join the cluster at runtime as Learners. The membership stream satisfies these safety invariants across all modes:
-
-- The membership stream's `committed_index` (the Raft log index of the last membership ConfChange, not the global commit index) is non-decreasing within each watch window
-- No node appears in both `members` and `learners` simultaneously
-- `members` is never empty (the voter set is always non-empty)
-
-Three membership modes have been verified:
-
-**Promotable Learners** (`--membership-mode promotable`): When the resulting voter count would be odd (3+2=5), both learners auto-promote to Voters via BatchPromote ConfChange. Node4 and node5 must eventually appear in `members`.
-
-**ReadOnly Learners** (`--membership-mode readonly`): Nodes configured with `status=ReadOnly` are permanently excluded from promotion regardless of quorum math. Node4 and node5 must never appear in `members`.
-
-**Single Learner / Stale Eviction** (`--membership-mode single-learner`): When the resulting voter count would be even (3+1=4), `batch_size=0` and the learner cannot promote. After `stale_learner_threshold` (hardcoded at 300s), the leader submits BatchRemove and the learner is expelled. Node4 must appear in `learners` and eventually disappear without ever entering `members`.
-
-**Verified by**: `membership` workload with `WatchMembership` stream monitoring throughout, all three modes tested with `FAULTS=partition`.
+- A passing Jepsen run is evidence, not proof. Jepsen finds violations; it cannot show there are none.
+- Every scenario was run 3 times, except where a section says otherwise. Three runs have little statistical weight.
+- Evidence was produced on a commit that is part of v0.2.5. The node images record `v0.1.2-63-g327938f` and `v0.1.2-59-ge0242b1`; both are the same source tree.
+- Each guarantee has the same four parts: the claim, the conditions it was tested under, the evidence, and its limits.
+- Status in the overview:
+  - **Verified**: tested on v0.2.5 and no violation found.
+  - **Observed**: no violation seen, but the test cannot rule it out.
+  - **Known issue**: a limit we know about.
+  - **Measured only**: numbers are reported, nothing is promised.
+  - **Not covered**: not tested. This is the only place that lists what is missing (section 6).
+- The run artifacts (`results.edn`, timelines) are kept in the `jepsen/store` directory of the machine that ran them. They are not published yet.
 
 ---
 
-## Fault Coverage
+## 1. Overview
 
-All guarantees above hold under the following simultaneously injected faults:
-
-| Fault              | Description                                                                  |
-| ------------------ | ---------------------------------------------------------------------------- |
-| Network partition  | iptables-based isolation: majority split, minority split, primaries isolated |
-| Node crash         | SIGKILL on minority nodes, automatic process restart                         |
-| Process suspension | SIGSTOP / SIGCONT simulating a frozen or slow node                           |
-
-Tests were run with all three faults combined (`FAULTS=all`).
-
----
-
-## Soak Test Results
-
-**6-hour soak test** — `WORKLOAD=set FAULTS=all TIME_LIMIT=21600` — passed on 2026-05-14:
-
-```
-:valid?           true
-:stable-count     49
-:never-read-count 14
-:lost-count       0
-:duplicated-count 0
-```
-
-All 63 attempted elements were either stably confirmed present or never read after the cluster recovered — no element was lost or duplicated.
-
-**Short tests (120s)** — all five workloads under `FAULTS=kill,partition` and `FAULTS=all`:
-
-| Workload   | `FAULTS=kill,partition` | `FAULTS=all` |
-| ---------- | ----------------------- | ------------ |
-| `register`   | ✅ PASS                 | ✅ PASS      |
-| `bank`       | ✅ PASS                 | ✅ PASS      |
-| `set`        | ✅ PASS                 | ✅ PASS      |
-| `append`     | ✅ PASS                 | ✅ PASS      |
-| `watch`      | ✅ PASS                 | ✅ PASS      |
-| `scan-watch` | ✅ PASS                 | —            |
-
-**Membership tests** — three modes verified on 2026-05-15:
-
-| Mode              | Faults      | Time limit | Result  |
-| ----------------- | ----------- | ---------- | ------- |
-| `promotable`      | `partition` | 120s       | ✅ PASS |
-| `readonly`        | `partition` | 120s       | ✅ PASS |
-| `single-learner`  | `none`      | 420s       | ✅ PASS |
-
-Note: `single-learner` uses `FAULTS=none` by default because `stale_learner_threshold` is hardcoded at 300s and frequent leader elections under partition extend the effective eviction time to 600–900s. Use `FAULTS=partition TIME_LIMIT=900` for fault-injection coverage of this mode.
-
-**Scan-watch tests** — verified on 2026-05-17:
-
-| Scenario                                             | Faults          | Time limit | Result  |
-| ---------------------------------------------------- | --------------- | ---------- | ------- |
-| Partition fault                                      | `partition`     | 60s        | ✅ PASS |
-| Kill + partition                                     | `kill,partition`| 300s       | ✅ PASS |
-| No-fault correctness                                 | `none`          | 60s        | ✅ PASS |
-| Buffer-overflow CANCELED (`RATE=200`)                | `none`          | 120s       | ✅ PASS |
+| Property | Status | Voters | Faults | Details |
+| --- | --- | --- | --- | --- |
+| Linearizable reads and writes, including reads from an isolated leader | Verified | 5 (3 for `kill`) | kill, leader-isolating partition, frozen leader | 2.1 |
+| No split brain under partition | Verified | 3, 5 | partition, pause | 2.2 |
+| Acknowledged writes survive power loss | Verified | 3 | leader and one node killed with unflushed data lost | 2.3 |
+| Acknowledged writes survive process kill | Verified | 5 | kill | 2.3 |
+| One leader at a time | Observed | 3, 5 | all of the above | 2.4 |
+| Lock built on compare-and-swap is mutually exclusive | Verified, with a limit | 3 | partition, kill | 2.5 |
+| Watch order, scan-then-watch, bank invariant | Verified | 3 (bank also 5) | partition | 2.6 |
+| Dynamic membership | Verified | 3 to 5 | partition (`single-learner`: none) | 2.7 |
+| Lease renewal with late replies | Known issue | any | none reproduced | F2 |
+| Recovery time | Measured only | 3 | partition, kill, pause | 3 |
+| Clock faults, lock expiry, snapshot catch-up, more than five voters | Not covered | | | 6 |
 
 ---
 
-## What Is Not Guaranteed
+## 2. Guarantees
 
-The following properties are **not** covered by this test suite:
+### 2.1 Linearizability, including reads from an isolated leader
 
-| Property                     | Reason not tested                                                                                                                            |
-| ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------- |
-| Distributed lock correctness | No distributed lock workload in the test suite; CAS primitives exist but lock lifecycle (acquire/renew/release under faults) is not verified |
-| Bounded recovery time        | Tests confirm recovery occurs; they do not measure or bound how long it takes                                                                |
+- **Claim**: reads and writes appear to take effect at one point in time, in the order Raft commits them. A leader that is cut off with one follower, or frozen while the others elect a new leader, does not return a stale value and does not accept writes it cannot commit.
+- **Conditions**: 5 voters; faults `kill`, leader-isolating partition (leader plus one follower cut off from the other three), frozen leader. Reads with the lease policy and the linearizable policy. For `kill` also 3 voters.
+- **Evidence**: 3/3 PASS each (Knossos): `register-kill-5v`, `register-leader-partition-5v`, `register-lease-leader-partition-5v`, `register-lease-leader-pause-5v`; 3 voters: `register-kill`. See F1 for the bug this found.
+- **Limits**: clock faults are not injected (section 6).
+
+### 2.2 No split brain under partition
+
+- **Claim**: during a partition only the majority side accepts writes. After healing the cluster converges and no acknowledged write is lost.
+- **Conditions**: 3 and 5 voters; `partition`, and `partition,pause` on 5 voters.
+- **Evidence**: 3/3 PASS each: `register-partition-pause-5v`, `bank-5v`, `append-5v` (Elle), `bank`, `set`, `append` (Elle), and the leader-isolating scenarios in 2.1.
+- **Limits**: faults are simulated on one host (section 6).
+
+### 2.3 Crash and power-loss durability
+
+- **Claim**: an acknowledged write survives (a) the leader and one more node losing their unflushed data and restarting, repeatedly, and (b) a minority of nodes being killed with SIGKILL and restarted.
+- **Conditions**: (a) 3 voters, lazyfs, `append` (Elle), 200 ops/s, 300 s, fault every 5 s. (b) 5 voters, `kill`.
+- **Evidence**: (a) `make test-durability`, 3/3 PASS. (b) `register-kill-5v`, 3/3 PASS.
+- **Limits**: lazyfs simulates the loss of unflushed data; a real disk or filesystem that ignores fsync is not covered.
+
+### 2.4 One leader at a time
+
+- **Claim**: no two-leader anomaly was observed.
+- **Conditions**: all `register` and `register-lease` scenarios in 2.1.
+- **Evidence**: a two-leader history would show up as a linearizability violation; none did.
+- **Limits**: this is inferred from the absence of a violation, hence **Observed**.
+
+### 2.5 Locks built on compare-and-swap
+
+- **Claim**: a lock built from `compare_and_swap` (acquire: free to owner; release: owner to free) was never held by two threads at once.
+- **Conditions**: 3 voters, `partition,kill`, 120 s, Knossos mutex model.
+- **Evidence**: `lock`, 3/3 PASS, 119 to 207 successful acquires per run.
+- **Limits**: an acquire that succeeded but was not confirmed is recorded as a failure, so a second holder at that moment would not show in the history. d-engine has no lock API (section 6).
+
+### 2.6 Watch, scan-then-watch, bank invariant
+
+- **Claim**:
+  - Watch events arrive in strictly increasing commit order.
+  - The reconnect pattern (Watch, Scan, drain events newer than the scan) has no gap, no phantom, and monotonic revisions.
+  - Concurrent cross-key transfers keep the total balance constant.
+- **Conditions**: 3 voters, `partition`, 60 s; `bank` also on 5 voters.
+- **Evidence**: `watch`, `scan-watch`, `bank`, `bank-5v`, 3/3 PASS each.
+- **Limits**: the buffer-overflow path of `scan-watch` (`RATE=200`) was not run on this commit.
+
+### 2.7 Dynamic membership
+
+- **Claim**: learners can join at runtime. `committed_index` of the membership stream never decreases within a watch window, no node is in both `members` and `learners`, and `members` is never empty.
+  - `promotable`: both learners are promoted to voters.
+  - `readonly`: read-only learners are never promoted.
+  - `single-learner`: a learner that cannot be promoted is evicted without ever entering `members`.
+- **Conditions**: `promotable` and `readonly` under `partition`, 60 s; `single-learner` without faults, 420 s.
+- **Evidence**: `membership-promotable`, `membership-readonly`, `membership-single-learner`, 3/3 PASS each.
+- **Limits**: eviction under faults was not run.
 
 ---
 
-## Test Environment
+## 3. Measurements (no promise)
 
-- d-engine version: v0.2.4
-- Jepsen version: 0.3.5
-- Cluster: 3 nodes (Docker containers, single host); 5 nodes for `membership` workload (node4/5 join dynamically)
-- Network faults are simulated via iptables on a single physical host; results do not capture real-world network latency or partial packet loss
-- Checker: Knossos (linearizability), Elle (strict-serializable), custom (watch ordering, scan-watch no-gap/no-phantom/monotonicity, membership stream invariants), balance invariant, set-full
+**Recovery time.** After a fault ends the cluster accepts writes again. **No upper bound is promised.** The time is measured from the end of the fault to the first successful write, as a client sees it. It includes the client's own 5 s call timeout and retries across nodes, and was not split into cluster time and client time.
+
+| Faults | Runs | Fault ends measured | Slowest |
+| --- | --- | --- | --- |
+| `partition,kill` | 1 | 5 | 1.8 s |
+| `partition,kill,pause` (pause freezes all nodes) | 3 | 7 to 12 per run | 22.5 s, 28.3 s, 29.0 s |
+
+---
+
+## 4. Findings
+
+### F1. Isolated leader returned stale values under lease reads
+
+Before the fix, `register-lease` reproduced the stale read in 5 of 5 runs. After the fix, 5 of 5 runs pass (#423). The scenarios stay as regression tests (2.1).
+
+### F2. Known limit in lease renewal
+
+A reply that arrives late is credited to the leader's newest heartbeat round, not the round it answers, so the lease can run up to one heartbeat interval too long. The configuration check keeps a margin between lease length and election timeout; it has not been measured whether the margin absorbs this, and no test has reproduced it.
+
+---
+
+## 5. How we know a pass means something
+
+- The node logs are scanned at the end of every run for fatal errors and panics.
+- All nodes must run the same commit.
+- A run that did not install the fault it is named after (for example, no leader-isolating partition) is reported invalid, not passed. The same holds for the recovery-time check when no fault ended while writes were being tried.
+- The stale-read test fails on the code before the fix (F1: 5 of 5 runs), so a pass is not an artifact of a test that cannot see the bug.
+
+---
+
+## 6. Not covered
+
+| Property | Status |
+| --- | --- |
+| Clock faults | Not injected. Lease reads assume bounded clock drift between the leader and followers; behavior under skew, jumps, or a slow leader clock is untested (#28). |
+| Lock with expiry | Cannot be tested: no conditional write with TTL (#29). |
+| Real disk and network | Faults are simulated with iptables and lazyfs on one host. A filesystem that ignores fsync is not covered. |
+| Snapshot catch-up of far-behind followers | Verified on v0.2.4 only (section 9); not exercised by the runs above. |
+| Membership eviction under faults | `single-learner` runs without faults. |
+| More than five voters | Not run. |
+
+---
+
+## 7. Tested configuration
+
+- Nodes: Docker containers on one host; 3 voters, or 5 voters from the start for the `-5v` scenarios; `membership` uses 5 nodes.
+- Election timeout: 1000 to 2000 ms on every node.
+- `lease_duration_ms` differs per node. In the 3-voter configuration it is 500 on node1 and 100 on node2 and node3. In the 5-voter configuration it is 500 on node1, node4, node5 and 100 on node2, node3. The lease only matters on the node that is leader, so which value applies depends on who is leader at the time. The values come from the earlier configurations and were not unified.
+- Client: each call has a 5 s deadline and is retried across nodes.
+- Defaults: 10 ops/s, a fault every 10 s, 60 s per run. `make test-durability` uses 200 ops/s, a fault every 5 s, 300 s.
+
+---
+
+## 8. Evidence log (v0.2.5)
+
+| Scenario | Voters | Faults | Runs | Result |
+| --- | --- | --- | --- | --- |
+| `test-durability` (`append`, lazyfs, 300 s) | 3 | leader+1 kill with power loss | 3 | 3 PASS |
+| `register-partition-pause-5v` | 5 | partition, pause | 3 | 3 PASS |
+| `register-kill-5v` | 5 | kill | 3 | 3 PASS |
+| `bank-5v` | 5 | partition | 3 | 3 PASS |
+| `append-5v` | 5 | partition | 3 | 3 PASS |
+| `register-leader-partition-5v` | 5 | leader+1 partition | 3 | 3 PASS |
+| `register-lease-leader-partition-5v` | 5 | leader+1 partition | 3 | 3 PASS |
+| `register-lease-leader-pause-5v` | 5 | frozen leader | 3 | 3 PASS |
+| `register-kill` | 3 | kill | 3 | 3 PASS |
+| `bank` | 3 | partition | 3 | 3 PASS |
+| `set` | 3 | partition | 3 | 3 PASS |
+| `append` | 3 | partition | 3 | 3 PASS |
+| `watch` | 3 | partition | 3 | 3 PASS |
+| `scan-watch` | 3 | partition | 3 | 3 PASS |
+| `membership-promotable` | 3 to 5 | partition | 3 | 3 PASS |
+| `membership-readonly` | 3 to 5 | partition | 3 | 3 PASS |
+| `membership-single-learner` (420 s) | 3 to 4 | none | 3 | 3 PASS |
+| `lock` | 3 | partition, kill | 3 | 3 PASS |
+| `register` (recovery time) | 3 | partition, kill, pause | 3 | 3 PASS (report only) |
+
+The node images record `v0.1.2-63-g327938f` (durability, five voters) and `v0.1.2-59-ge0242b1` (three-voter scenarios, lock, recovery); both are the same source tree.
+
+---
+
+## 9. History
+
+Results from v0.2.4 (6-hour `set` soak with `FAULTS=all`, 120 s workload runs, snapshot catch-up, membership and scan-watch runs from May 2026) were produced before the #423 fixes. They are kept for reference only and no guarantee above rests on them.
+
+---
+
+## 10. Reproduce
+
+`make build`, then `make test` (all scenarios), `make test-durability`, and `make run-workload WORKLOAD=lock FAULTS=partition,kill`.
+
+- Jepsen 0.3.5.
+- Checkers: Knossos, Elle, set-full, and custom checkers for watch, scan-watch, membership, bank and recovery time.

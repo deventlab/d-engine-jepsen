@@ -7,7 +7,8 @@
                     [db :as db]
                     [lazyfs :as lazyfs]]
             [jepsen.control.util :as cu]
-            [jepsen.d_engine.client :as grpc]))
+            [jepsen.d_engine.client :as grpc]
+            [slingshot.slingshot :refer [try+]]))
 
 (def binary  "demo")
 (def logfile "/app/logs/d-engine-jepsen.log")
@@ -19,10 +20,19 @@
     (throw (ex-info "Unknown node" {:node node}))))
 
 (defn data-dir
-  "Absolute path to a node's raft log/state directory — matches db_root_dir
-  in config/nN.toml (relative to the demo process's /app working directory)."
+  "Absolute path to a node's raft log/state directory, passed to the demo as
+  DB_PATH. Must match DB_PATH=/app/db/$ID in the d-engine Dockerfile CMD, which
+  starts the node on container startup; the data dir is no longer a config key."
   [node]
   (str "/app/db/" (node-id node)))
+
+(defn config-path
+  "Config file a node starts with, without the .toml suffix. A five-voter run
+  keeps its configs in their own directory, where every node lists all five
+  nodes as voters; every other run uses /app/config/nN."
+  [test node]
+  (str (if (:five-voters test) "/app/config/five/n" "/app/config/n")
+       (node-id node)))
 
 (defn lazyfs-for
   "Builds a jepsen.lazyfs map for a node's data directory. The lazyfs binary
@@ -32,10 +42,39 @@
   [node]
   (lazyfs/lazyfs {:dir (data-dir node) :cache-size "0.5GB"}))
 
-(defn kill!
-  "Kills the demo process on the current node via SIGKILL."
+(defn running?
+  "True when a demo process is running on the current node. Run inside c/on.
+  Only pgrep's own \"no match\" exit status means not running; any other failure
+  (ssh, permissions) propagates, so it can not be mistaken for a stopped node."
   []
-  (c/su (cu/grepkill! binary)))
+  (try+ (c/exec :pgrep :-x binary)
+        true
+        (catch [:type :jepsen.control/nonzero-exit :exit 1] _ false)))
+
+(defn await-stopped!
+  "Blocks until no demo process is left on the current node. SIGKILL is
+  asynchronous: a start right after kill! could still see the dying process
+  and wrongly skip the start."
+  ([] (await-stopped! 5000))
+  ([timeout-ms]
+   (let [deadline (+ (System/currentTimeMillis) timeout-ms)]
+     (loop []
+       (cond
+         (not (running?)) :stopped
+         (> (System/currentTimeMillis) deadline)
+         (throw (ex-info "demo still running after SIGKILL" {:timeout-ms timeout-ms}))
+         :else (do (Thread/sleep 100) (recur)))))))
+
+(defn kill!
+  "Kills the demo process on the current node via SIGKILL and waits until it is gone."
+  []
+  (c/su (cu/grepkill! binary))
+  (await-stopped!))
+
+(defn wipe-data!
+  "Deletes a node's data directory. Run on the node, inside c/on."
+  [node]
+  (c/su (c/exec :rm :-rf (data-dir node))))
 
 (defn start!
   "Starts the demo binary. config-override optionally replaces the default
@@ -46,22 +85,28 @@
          conf  (or config-override (str "/app/config/n" id))
          log   (str "/app/logs/" id)
          mport (+ 8080 id)]
-     (c/su
-       (cu/start-daemon!
-         {:logfile logfile
-          :pidfile "/app/demo.pid"
-          :chdir   "/app"
-          :env     {"CONFIG_PATH"  conf
-                    "LOG_DIR"      log
-                    "METRICS_PORT" (str mport)
-                    "DB_PATH"      (data-dir node)
-                    "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
-         "/usr/local/bin/demo")))))
+     ; Docker starts the first demo without a pidfile, so start-daemon! can not
+     ; see it. A second process would fail on the metrics and RPC ports and
+     ; leave a panic in the shared log, so check for a running demo first.
+     (if (running?)
+       (info node "demo already running, not starting a second one")
+       (c/su
+         (cu/start-daemon!
+           {:logfile logfile
+            :pidfile "/app/demo.pid"
+            :chdir   "/app"
+            :env     {"CONFIG_PATH"  conf
+                      "LOG_DIR"      log
+                      "METRICS_PORT" (str mport)
+                      "DB_PATH"      (data-dir node)
+                      "RUST_LOG"     "demo=debug,d_engine=debug,hyper=warn,sled=warn"}}
+           "/usr/local/bin/demo"))))))
 
 (defrecord DB []
   db/DB
   (setup! [_ test node]
-    (if (:lazyfs test)
+    (cond
+      (:lazyfs test)
       ; Docker already started demo writing straight to /app/db/N. Kill it,
       ; remount that path under lazyfs, then restart so all writes from here
       ; on go through the FUSE layer (needed for the kill nemesis to be able
@@ -70,6 +115,17 @@
           (kill!)
           (lazyfs/mount! (lazyfs-for node))
           (start! node))
+
+      (:five-voters test)
+      ; Docker started nodes 1-3 with the three-voter config and left nodes 4-5
+      ; stopped. Restart all five with the five-voter config on an empty data
+      ; dir, so no node carries the history of a three-voter cluster.
+      (do (info node "starting in five-voter mode")
+          (kill!)
+          (wipe-data! node)
+          (start! node (config-path test node)))
+
+      :else
       ; Demo is running from Docker startup — cluster lifecycle is managed by
       ; restart-stack (docker compose down/up), not by Jepsen setup/teardown.
       (info node "d-engine already running (Docker mode), skipping setup")))
@@ -106,7 +162,7 @@
            (remove nil?))))
 
   db/Process
-  (start! [_ test node] (start! node nil))
+  (start! [_ test node] (start! node (config-path test node)))
   (kill!  [_ test node]
     (kill!)
     (when (:lazyfs test)
