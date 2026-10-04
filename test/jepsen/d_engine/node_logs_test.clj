@@ -1,6 +1,7 @@
 (ns jepsen.d-engine.node-logs-test
   (:require [clojure.test :refer [deftest is testing]]
             [jepsen.checker :as checker]
+            [slingshot.slingshot :refer [throw+]]
             [jepsen.control :as c]
             [jepsen.d_engine.node-logs :as node-logs]
             [jepsen.nemesis :as nemesis]))
@@ -83,12 +84,16 @@
     (is (= "nodes run different commits" (:error result)))
     (is (= #{"ce65a10" "641110b"} (set (:commits result))))))
 
-(deftest checker-ignores-unknown-commits
-  (testing "one known commit and unknown ones: valid"
+(deftest checker-is-unknown-when-a-node-did-not-report-its-commit
+  (testing "one known commit and one unknown: the run cannot show they match"
     (let [result (check (scan-history {"node1" (node "ce65a10") "node2" (node "unknown")}))]
-      (is (true? (:valid? result)))))
-  (testing "only unknown commits: valid, nothing to compare"
-    (is (true? (:valid? (check (scan-history {"node1" (node "unknown")}))))))
+      (is (= :unknown (:valid? result)))
+      (is (= "one or more nodes did not report a commit" (:error result)))))
+  (testing "only unknown commits"
+    (is (= :unknown (:valid? (check (scan-history {"node1" (node "unknown")}))))))
+  (testing "different known commits still fail, whatever else is unknown"
+    (is (false? (:valid? (check (scan-history {"node1" (node "a") "node2" (node "b")
+                                               "node3" (node "unknown")}))))))
   (testing "a scan without any commit field (older result format): valid"
     (is (true? (:valid? (check (scan-history {"node1" {:fatal [] :panics []}})))))))
 
@@ -128,3 +133,57 @@
                 "node2" {:node "node2" :shared? false}
                 "node3" {:node "node3" :shared? false}}
                (:value op)))))))
+
+;; ---- unreadable logs ----
+
+(defn- fake-exec
+  "A c/exec that answers by the command it is given: (rule command) returns
+  :no-match (grep exit 1), :error (exit 2) or the output text."
+  [rule]
+  (fn [& args]
+    (let [command (last args)
+          answer  (rule command)]
+      (case answer
+        :no-match (throw+ {:type :jepsen.control/nonzero-exit :exit 1})
+        :error    (throw+ {:type :jepsen.control/nonzero-exit :exit 2})
+        answer))))
+
+(deftest scan-node-treats-no-match-as-a-clean-log
+  (with-redefs [c/exec (fake-exec (constantly :no-match))]
+    (let [r (node-logs/scan-node "node1" true)]
+      (is (= [] (:fatal r)))
+      (is (= [] (:panics r)))
+      (is (= "unknown" (:commit r)))
+      (is (false? (:inconclusive? r))))))
+
+(deftest scan-node-keeps-what-grep-found
+  (with-redefs [c/exec (fake-exec #(cond
+                                     (re-find #"/d.log" %)  "Fatal error from RaftLog\n"
+                                     (re-find #"panicked" %) "thread 'x' panicked at a.rs:1:1:\nboom\n"
+                                     :else                   "v0.2.5\n"))]
+    (let [r (node-logs/scan-node "node1" true)]
+      (is (= ["Fatal error from RaftLog"] (:fatal r)))
+      (is (= ["thread 'x' panicked at a.rs:1:1: | boom"] (:panics r)))
+      (is (= "v0.2.5" (:commit r)))
+      (is (false? (:inconclusive? r))))))
+
+(deftest scan-node-flags-an-unreadable-node-log
+  (with-redefs [c/exec (fake-exec #(if (re-find #"/d.log" %) :error :no-match))]
+    (let [r (node-logs/scan-node "node1" false)]
+      (is (true? (:inconclusive? r)))
+      (is (= [] (:fatal r))))))
+
+(deftest scan-node-flags-an-unreadable-shared-log-only-where-it-is-scanned
+  (with-redefs [c/exec (fake-exec #(if (re-find #"panicked" %) :error :no-match))]
+    (is (true? (:inconclusive? (node-logs/scan-node "node1" true))))
+    (is (false? (:inconclusive? (node-logs/scan-node "node2" false))))))
+
+(deftest checker-is-unknown-when-a-log-could-not-be-read
+  (let [result (check (scan-history {"node1" {:fatal [] :panics [] :inconclusive? false}
+                                     "node2" {:fatal [] :panics [] :inconclusive? true}}))]
+    (is (= :unknown (:valid? result)))))
+
+(deftest checker-reports-a-failure-even-when-another-log-is-unreadable
+  (let [result (check (scan-history {"node1" {:fatal ["Fatal error from X"] :panics []}
+                                     "node2" {:fatal [] :panics [] :inconclusive? true}}))]
+    (is (false? (:valid? result)))))

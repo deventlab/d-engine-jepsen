@@ -73,7 +73,7 @@ Verified by [Jepsen](https://jepsen.io/) testing on d-engine v0.2.5.
 - **Claim**: a lock built from `compare_and_swap` (acquire: free to owner; release: owner to free) was never held by two threads at once.
 - **Conditions**: 3 voters, `partition,kill`, 120 s, Knossos mutex model.
 - **Evidence**: `lock`, 3/3 PASS, 119 to 207 successful acquires per run.
-- **Limits**: an acquire that succeeded but was not confirmed is recorded as a failure, so a second holder at that moment would not show in the history. d-engine has no lock API (section 6).
+- **Limits**: an acquire that succeeded but was not confirmed is recorded as a failure, so a second holder at that moment would not show in the history. A release is recorded as `:ok` whatever the CAS returned, because a timed-out release is retried on another node and a "not swapped" answer can mean the first attempt already applied. A PASS therefore does not establish that each release applied, and a later acquire by the same thread may clear a stale token. d-engine has no lock API (section 6).
 
 ### 2.6 Watch, scan-then-watch, bank invariant
 

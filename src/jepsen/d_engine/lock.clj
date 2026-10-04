@@ -51,8 +51,12 @@
         (assoc op :type :fail :error :not-held)
         (let [res (release-own!)]
           ;; Whatever came back, the critical section is over and this client
-          ;; will not use the lock again. A release that did not go through is
-          ;; repeated by the next acquire attempt.
+          ;; will not use the lock again. Even "not swapped" is not evidence of
+          ;; a lost lock: a timed-out release is retried on another node, and by
+          ;; then the first attempt may have freed the lock. Recording it as a
+          ;; failure would make Knossos report a second holder that is not there.
+          ;; A release that did not go through is repeated by the next acquire
+          ;; attempt.
           (reset! held false)
           (assoc op :type :ok))))))
 

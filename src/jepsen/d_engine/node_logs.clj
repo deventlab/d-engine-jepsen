@@ -10,6 +10,7 @@
   large to download (tens to hundreds of MB), so grep runs on the node and only the
   matching lines come back."
   (:require [clojure.string :as str]
+            [slingshot.slingshot :refer [try+]]
             [jepsen [checker :as checker]
                     [control :as c]
                     [nemesis :as nemesis]]
@@ -62,10 +63,14 @@
       :else                         (recur more acc))))
 
 (defn- grep
-  "Runs a grep pipeline on the current node and returns its matching lines. A
-  missing file or no match yields no lines instead of an error."
+  "Runs a command on the current node and returns its output lines. Exit status 1
+  is grep's \"no match\" and yields no lines. Any other failure, such as a log that
+  cannot be read, yields nil: the scan did not see that log."
   [command]
-  (log-lines (c/exec :sh :-c (str command " 2>/dev/null | head -n " max-lines "; true"))))
+  (try+
+    (log-lines (c/exec :sh :-c command))
+    (catch [:type :jepsen.control/nonzero-exit :exit 1] _ [])
+    (catch [:type :jepsen.control/nonzero-exit] _ nil)))
 
 (defn node-commit
   "The commit the current node's binary was built from, or \"unknown\" for an image
@@ -76,13 +81,17 @@
 
 (defn scan-node
   "What the logs of the current node say, and which commit it runs. Run inside
-  c/on. The shared log is only scanned when scan-shared? is true."
+  c/on. The shared log is only scanned when scan-shared? is true. :inconclusive?
+  is true when a log that had to be scanned could not be read."
   [node scan-shared?]
-  {:fatal  (grep (str "grep -aE '" fatal-pattern "' " (node-log node)))
-   :panics (if scan-shared?
-             (panic-blocks (grep (str "grep -a -A1 'panicked at' " shared-log)))
-             [])
-   :commit (node-commit)})
+  (let [fatal  (grep (str "grep -aE -m " max-lines " '" fatal-pattern "' " (node-log node)))
+        shared (when scan-shared?
+                 (grep (str "grep -a -m " max-lines " -A1 'panicked at' " shared-log)))]
+    {:fatal         (or fatal [])
+     :panics        (if scan-shared? (panic-blocks (or shared [])) [])
+     :commit        (node-commit)
+     :inconclusive? (boolean (or (nil? fatal)
+                                 (and scan-shared? (nil? shared))))}))
 
 (defn with-log-scan
   "Wraps a nemesis: an operation with :f :scan-logs scans every node and returns
@@ -120,10 +129,11 @@
 
 (defn checker
   "Fails when a node logged a fatal error or panicked, or when the nodes of one
-  run do not run the same commit. Nodes that report \"unknown\" are ignored for the
-  commit comparison: an image built without a commit says nothing. Unknown when
-  the run recorded no scan, for instance because the harness failed before the
-  end. The commits the nodes run are part of the result either way."
+  run do not run the same commit. Unknown when the run recorded no scan, for
+  instance because the harness failed before the end, when a log that had to be
+  scanned could not be read, and when a node did not report its commit (an image
+  built without one): the run cannot show that all nodes run the same code. The commits the nodes
+  run are part of the result either way."
   []
   (reify checker/Checker
     (check [_ test history opts]
@@ -147,6 +157,19 @@
               (> (count (remove #{"unknown"} cs)) 1)
               {:valid?  false
                :error   "nodes run different commits"
+               :commits cs}
+
+              ;; After the failures: a real finding must not be hidden by an
+              ;; unreadable log elsewhere.
+              (some #(some :inconclusive? (vals %)) scans)
+              {:valid?  :unknown
+               :error   "a node log could not be read, so it was not scanned"
+               :commits cs}
+
+              ;; The run cannot show that every node ran the same commit.
+              (some #{"unknown"} cs)
+              {:valid?  :unknown
+               :error   "one or more nodes did not report a commit"
                :commits cs}
 
               :else

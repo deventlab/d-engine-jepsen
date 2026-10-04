@@ -10,17 +10,22 @@
 (defn healed-leader-partitions
   "Number of partitions that cut the leader and a follower off from the other
   nodes (:leader-in-minority true on the start operation) and were healed later.
-  Starts and stops each appear twice in a history (invocation and completion);
-  a stop only counts when a leader partition is still open, so none is counted
-  twice."
+  Starts and stops each appear twice in a history (invocation and completion).
+  Only a completion that reports success counts: the partitioner answers a start
+  with [:isolated grudge] and a stop with :network-healed. An invocation, or a
+  completion of an operation that failed, keeps the value it was invoked with."
   [history]
   (:episodes
    (reduce (fn [{:keys [open episodes] :as state} op]
              (cond
-               (and (= :start-partition (:f op)) (:leader-in-minority op))
+               (and (= :start-partition (:f op))
+                    (= :isolated (first (:value op)))
+                    (:leader-in-minority op))
                (assoc state :open true)
 
-               (and (= :stop-partition (:f op)) open)
+               (and (= :stop-partition (:f op))
+                    (= :network-healed (:value op))
+                    open)
                {:open false, :episodes (inc episodes)}
 
                :else state))
