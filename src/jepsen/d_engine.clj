@@ -19,6 +19,10 @@
    [jepsen.d_engine.scan-watch :as scan-watch-workload]
    [jepsen.d_engine.membership :as membership-workload]
    [jepsen.d_engine.db         :as db-module]
+   [jepsen.d_engine.coverage   :as coverage]
+   [jepsen.d_engine.node-logs  :as node-logs]
+   [jepsen.d_engine.lock       :as lock-workload]
+   [jepsen.d_engine.recovery   :as recovery]
    [jepsen.d_engine.nemesis    :as d-nemesis]))
 
 ;; ========== Nemesis spec ==========
@@ -37,7 +41,7 @@
 (defn r [_ _] {:type :invoke, :f :read,  :value nil})
 (defn w [_ _] {:type :invoke, :f :write, :value (rand-int 5)})
 
-(defrecord RegisterClient [endpoints channels]
+(defrecord RegisterClient [endpoints channels read-policy]
   client/Client
   (open! [this test node]
     (assoc this :channels (grpc/open-all-channels endpoints)))
@@ -49,7 +53,7 @@
     (let [[k v] (:value op)]
       (case (:f op)
         :read
-        (let [res (grpc/lget channels k)]
+        (let [res (grpc/lget channels k read-policy)]
           (case (:type res)
             :ok   (assoc op :type :ok :value (independent/tuple k (:value res)))
             :info (assoc op :type :fail :error (:error res))
@@ -61,19 +65,24 @@
             :info (assoc op :type :info :error (:error res))
             :fail (assoc op :type :fail :error (:error res))))))))
 
-(defn register-workload [opts]
-  {:client  (RegisterClient. (:endpoints opts) nil) ; channels populated in open!
-   :checker (independent/checker
-              (checker/compose
-               {:linear   (checker/linearizable {:model     (model/cas-register)
-                                                 :algorithm :auto})
-                :timeline (timeline/html)}))
-   :generator (independent/concurrent-generator
-                3 (range 3)
-                (fn [k]
-                  (->> (gen/mix [r w])
-                       (gen/stagger 1/2)
-                       (gen/limit 40))))})
+(defn register-workload
+  "Reads and writes of independent registers, checked for linearizability.
+  read-policy is how reads are asked to be served: :linearizable (default) or
+  :lease (the leader answers from its own state while its lease is valid)."
+  ([opts] (register-workload opts :linearizable))
+  ([opts read-policy]
+   {:client  (RegisterClient. (:endpoints opts) nil read-policy) ; channels populated in open!
+    :checker (independent/checker
+               (checker/compose
+                {:linear   (checker/linearizable {:model     (model/cas-register)
+                                                  :algorithm :auto})
+                 :timeline (timeline/html)}))
+    :generator (independent/concurrent-generator
+                 3 (range 3)
+                 (fn [k]
+                   (->> (gen/mix [r w])
+                        (gen/stagger 1/2)
+                        (gen/limit 40))))}))
 
 ;; ========== Workload dispatch ==========
 
@@ -85,11 +94,38 @@
     "watch"      (watch-workload/workload opts)
     "scan-watch" (scan-watch-workload/workload opts)
     "membership" (membership-workload/workload opts)
+    "register-lease" (register-workload opts :lease)
+    "lock"       (lock-workload/workload opts)
     (register-workload opts)))
 
 ;; ========== Test spec ==========
 
+(defn check-five-voters!
+  "Fails fast on option combinations a five-voter run cannot honor."
+  [opts]
+  (when (:five-voters opts)
+    (when (:lazyfs opts)
+      (throw (ex-info "--five-voters cannot be combined with --lazyfs" {})))
+    (when (not= 5 (count (:nodes opts)))
+      (throw (ex-info "--five-voters needs exactly five --node arguments"
+                      {:nodes (:nodes opts)})))))
+
+(defn check-faults!
+  "Fails fast on fault combinations that install the same operations twice, or
+  that need more nodes than the run has."
+  [opts]
+  (let [faults (set (:faults opts))]
+    (doseq [[a b] [[:partition :leader-partition] [:pause :leader-pause]]]
+      (when (and (faults a) (faults b))
+        (throw (ex-info (str a " and " b " install the same operations and can not be combined")
+                        {:faults faults}))))
+    (when (and (faults :leader-partition) (not= 5 (count (:nodes opts))))
+      (throw (ex-info ":leader-partition needs exactly five --node arguments"
+                      {:nodes (:nodes opts)})))))
+
 (defn test-spec [opts]
+  (check-five-voters! opts)
+  (check-faults! opts)
   (let [wl  (workload opts)
         db  (db-module/db)
         nem (d-nemesis/nemesis-package
@@ -136,18 +172,33 @@
               (gen/nemesis (:final-generator nem))
               (gen/log "Waiting for recovery")
               (gen/sleep 10)
-              (gen/clients (:final-generator wl)))]
+              (gen/clients (:final-generator wl))
+              ;; Last: look for fatal errors in the node logs of this whole run.
+              (gen/log "Scanning node logs")
+              (gen/nemesis node-logs/scan-op))
+        faults (set (:faults opts))]
     (merge tests/noop-test
            opts
            {:name      (str "d-engine-" (:workload opts "register")
-                            (when (:lazyfs opts) "-lazyfs"))
+                            (when (:lazyfs opts) "-lazyfs")
+                            (when (:five-voters opts) "-five"))
             :ssh       {:private-key-path        "/root/.ssh/id_rsa"
                         :strict-host-key-checking false}
             :lazyfs    (:lazyfs opts)
             :db        db
             :client    (:client wl)
-            :nemesis   combined-nemesis
-            :checker   (:checker wl)
+            :nemesis   (node-logs/with-log-scan combined-nemesis)
+            :checker   (checker/compose
+                         (cond-> {:workload  (:checker wl)
+                                  :node-logs (node-logs/checker)}
+                           ;; A run that never put the leader in a two-node
+                           ;; minority did not test what it is named after.
+                           (faults :leader-partition)
+                           (assoc :leader-partition (coverage/leader-partition-checker))
+                           ;; Only when asked: with no fault ended the checker
+                           ;; is :unknown, which would change other runs.
+                           (:recovery-bound-ms opts)
+                           (assoc :recovery (recovery/recovery-checker (:recovery-bound-ms opts)))))
             :generator gen})))
 
 ;; ========== CLI ==========
@@ -158,11 +209,11 @@
     :parse-fn identity
     :validate [(complement empty?) "endpoints cannot be empty."]]
 
-   ["-w" "--workload NAME" "Workload: register (default), bank, set, append, watch, scan-watch, membership"
+   ["-w" "--workload NAME" "Workload: register (default), register-lease, lock, bank, set, append, watch, scan-watch, membership"
     :default  "register"
     :parse-fn identity
-    :validate [#{"register" "bank" "set" "append" "watch" "scan-watch" "membership"}
-               "must be one of: register, bank, set, append, watch, scan-watch, membership"]]
+    :validate [#{"register" "register-lease" "lock" "bank" "set" "append" "watch" "scan-watch" "membership"}
+               "must be one of: register, register-lease, lock, bank, set, append, watch, scan-watch, membership"]]
 
    [nil "--membership-mode MODE"
     "Membership workload mode: promotable (default), readonly, single-learner"
@@ -171,7 +222,7 @@
     :validate [#{"promotable" "readonly" "single-learner"}
                "must be one of: promotable, readonly, single-learner"]]
 
-   [nil "--faults FAULTS" "Nemesis faults (comma-separated: partition,kill,pause / all / none)"
+   [nil "--faults FAULTS" "Nemesis faults (comma-separated: partition,kill,pause,leader-partition,leader-pause / all / none)"
     :default  [:partition]
     :parse-fn parse-nemesis-spec]
 
@@ -185,7 +236,16 @@
     :parse-fn read-string
     :validate [pos? "nemesis-interval must be positive"]]
 
+   [nil "--recovery-bound-ms MS"
+    "Measure how long a write takes to succeed after each fault ends; fail the run above MS (use a huge value to only report)"
+    :parse-fn read-string
+    :validate [pos? "recovery-bound-ms must be positive"]]
+
    [nil "--lazyfs" "Mount each node's data dir under lazyfs, and make the kill nemesis lose unfsynced writes (simulated power loss)"
+    :default false]
+
+   [nil "--five-voters"
+    "Run five nodes, all voters from the start (needs five --node arguments), instead of the default three-voter cluster"
     :default false]])
 
 (defn -main [& args]

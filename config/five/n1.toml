@@ -1,6 +1,6 @@
-# Docker Jepsen config for node 1.
-# initial_cluster uses container IPs (192.168.0.x) instead of 0.0.0.0,
-# which is required for inter-container Raft peer connections.
+# Docker Jepsen config for node 1, five-voter mode (feat #27).
+# All five nodes are voters from the start; Jepsen starts them via SSH with
+# CONFIG_PATH=/app/config/five/nN. initial_cluster uses container IPs (192.168.0.x).
 
 [cluster]
 node_id = 1
@@ -9,6 +9,8 @@ initial_cluster = [
     { id = 1, address = "192.168.0.11:9081", role = 1, status = 3 },
     { id = 2, address = "192.168.0.12:9082", role = 1, status = 3 },
     { id = 3, address = "192.168.0.13:9083", role = 1, status = 3 },
+    { id = 4, address = "192.168.0.15:9085", role = 1, status = 3 },
+    { id = 5, address = "192.168.0.16:9086", role = 1, status = 3 },
 ]
 
 [raft]
